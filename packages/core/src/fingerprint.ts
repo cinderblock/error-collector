@@ -77,7 +77,15 @@ function significantFrames(frames: StackFrame[]): StackFrame[] {
   return pool.slice(-FINGERPRINT_FRAMES);
 }
 
-function innermostException(exception: ExceptionValue[] | undefined): ExceptionValue | undefined {
+/**
+ * The exception a human (and the fingerprint) should key on.
+ *
+ * Sentry orders `exception.values` oldest-first, so the last entry is the error
+ * actually thrown and the earlier ones are the causes it wrapped. Keying on the
+ * thrown error keeps two unrelated bugs that both wrap, say, an `ECONNRESET` from
+ * collapsing into one issue.
+ */
+function primaryException(exception: ExceptionValue[] | undefined): ExceptionValue | undefined {
   return exception && exception.length > 0 ? exception[exception.length - 1] : undefined;
 }
 
@@ -88,7 +96,7 @@ function innermostException(exception: ExceptionValue[] | undefined): ExceptionV
 export function fingerprintComponents(event: StoredEvent, appId: string): string[] {
   const parts = [`app:${appId}`, `kind:${event.kind}`];
 
-  const exception = innermostException(event.exception?.values);
+  const exception = primaryException(event.exception?.values);
   const frames = exception?.stacktrace?.frames ?? [];
 
   if (exception) {
@@ -137,7 +145,7 @@ export async function resolveFingerprint(
 // ---------------------------------------------------------------------------
 
 export function titleFor(event: StoredEvent): string {
-  const exception = innermostException(event.exception?.values);
+  const exception = primaryException(event.exception?.values);
   if (exception) {
     const type = exception.type ?? 'Error';
     const value = exception.value?.trim();
@@ -148,7 +156,7 @@ export function titleFor(event: StoredEvent): string {
 
 /** The frame a human should look at first: the innermost in-app frame. */
 export function culpritFor(event: StoredEvent): string | null {
-  const frames = innermostException(event.exception?.values)?.stacktrace?.frames ?? [];
+  const frames = primaryException(event.exception?.values)?.stacktrace?.frames ?? [];
   const chosen = significantFrames(frames).at(-1);
   if (!chosen) return null;
 

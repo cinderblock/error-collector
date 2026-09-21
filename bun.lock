@@ -7,14 +7,32 @@
       "devDependencies": {
         "@cloudflare/workers-types": "^5.20260921.1",
         "@types/bun": "^1.4.2",
+        "@types/node": "^26.6.2",
         "prettier": "^3.8.0",
         "typescript": "^5.9.0",
         "wrangler": "^4.61.0",
       },
     },
+    "packages/cli": {
+      "name": "@tomsawyerlabs/error-collector-cli",
+      "version": "0.0.0",
+      "bin": {
+        "error-collector": "./dist/index.js",
+      },
+      "dependencies": {
+        "@tomsawyerlabs/error-collector-core": "workspace:*",
+      },
+    },
     "packages/core": {
       "name": "@tomsawyerlabs/error-collector-core",
       "version": "0.0.0",
+    },
+    "packages/sdk": {
+      "name": "@tomsawyerlabs/error-collector",
+      "version": "0.0.0",
+      "dependencies": {
+        "@tomsawyerlabs/error-collector-core": "workspace:*",
+      },
     },
     "worker": {
       "name": "error-collector-worker",
@@ -166,6 +184,10 @@
     "@sindresorhus/is": ["@sindresorhus/is@7.2.0", "", {}, "sha512-P1Cz1dWaFfR4IR+U13mqqiGsLFf1KbayybWwdd2vfctdV6hDpUkgCY0nKOLLTMSoRd/jJNjtbqzf13K8DCCXQw=="],
 
     "@speed-highlight/core": ["@speed-highlight/core@1.2.24", "", {}, "sha512-qeW2e1l78afw8VhRPfPQ1Gjj+KU5XFQ/OFV5ti6eTa9bruO7mJyZtA4vw0ofqmA3tKCkROE9xLk3VZoeRc98nw=="],
+
+    "@tomsawyerlabs/error-collector": ["@tomsawyerlabs/error-collector@workspace:packages/sdk"],
+
+    "@tomsawyerlabs/error-collector-cli": ["@tomsawyerlabs/error-collector-cli@workspace:packages/cli"],
 
     "@tomsawyerlabs/error-collector-core": ["@tomsawyerlabs/error-collector-core@workspace:packages/core"],
 

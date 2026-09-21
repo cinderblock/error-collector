@@ -1,0 +1,35 @@
+{
+  "name": "@tomsawyerlabs/error-collector-cli",
+  "version": "0.0.0",
+  "description": "Derive ingest keys at build time and pull error datasets for triage.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "error-collector": "./dist/index.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "bun run ../../scripts/guard-publish.ts && bun run build"
+  },
+  "dependencies": {
+    "@tomsawyerlabs/error-collector-core": "workspace:*"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cinderblock/error-collector.git",
+    "directory": "packages/cli"
+  }
+}
