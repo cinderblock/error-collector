@@ -9,8 +9,9 @@ export interface Env {
 
   // vars
   RP_NAME: string;
-  RP_ID: string;
-  ORIGIN: string;
+  // No RP_ID or ORIGIN: the WebAuthn relying party is derived from the request URL
+  // (see auth/webauthn.ts), which is correct on whatever hostname this is deployed
+  // to and makes localhost development work with no configuration.
   OWNER_ID: string;
   OWNER_NAME: string;
   AE_DATASET: string;

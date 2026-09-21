@@ -69,13 +69,21 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
 
+      # The deployed hostname is a property of *this* deployment, not of the source,
+      # so it comes from a repo variable rather than being committed. Skipped rather
+      # than failed when unset: a fork with no custom domain still deploys fine.
       - name: Smoke test
+        if: vars.DEPLOY_URL != ''
         run: |
           for attempt in 1 2 3 4 5; do
-            if curl -fsS "https://error-collector.tomsawyerlabs.com/healthz" | grep -q ok; then
+            if curl -fsS "${{ vars.DEPLOY_URL }}/healthz" | grep -q ok; then
               echo "healthy"; exit 0
             fi
             echo "not healthy yet (attempt $attempt)"; sleep 5
           done
-          echo "::error::deployment did not become healthy"
+          echo "::error::deployment did not become healthy at ${{ vars.DEPLOY_URL }}"
           exit 1
+
+      - name: Note missing smoke-test target
+        if: vars.DEPLOY_URL == ''
+        run: echo "::notice::set the DEPLOY_URL repository variable to smoke-test after deploy"

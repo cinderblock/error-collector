@@ -1,8 +1,13 @@
 # error-collector — design
 
 A cheap, self-hosted place to collect errors, user feedback and screenshots from
-the apps I'm developing, running entirely on Cloudflare, at
-`error-collector.tomsawyerlabs.com`.
+the apps I'm developing, running entirely on Cloudflare.
+
+**No hostname appears anywhere in this repo.** Where a given copy is deployed is a
+property of that deployment, not of the source — so the SDK and CLI require an
+explicit endpoint, CI reads a `DEPLOY_URL` variable, and the WebAuthn relying party
+is derived from the request URL. My own deployment's hostname and Cloudflare
+resources are recorded in the ops repo (`plans/error-collector-cloudflare.md`).
 
 Status: **built and verified locally; not yet deployed.** Every piece below exists
 and has been exercised against a local D1/R2/KV. The remaining work is the ops change
@@ -29,10 +34,12 @@ detail rather than by generating a bill or hard-failing.
 
 - Cloudflare account `c5987fbfdbb396ef3121459c26125cc0` (from
   `ops/cloudflare/workers/uptime/wrangler.toml`).
-- DNS for `tomsawyerlabs.com` is managed in the **ops** repo
-  (`github.com/cinderblock/ops`, local `~/git/Personal Projects/ops`), file
-  `cloudflare/config/isozilla/tomsawyerlabs.yaml`. Worker custom domains are declared
-  there as `- domain: <host>` + `worker: <name>` (see `cloudflare/config/workers/*.yaml`).
+- DNS and Cloudflare account resources are managed in the **ops** repo
+  (`github.com/cinderblock/ops`, local `~/git/Personal Projects/ops`). Worker custom
+  domains are declared there as `- domain: <host>` + `worker: <name>` (see
+  `cloudflare/config/workers/*.yaml`). The declaration for this service, and the
+  hostname it uses, live in `cloudflare/config/workers/error-collector.yaml` and
+  `plans/error-collector-cloudflare.md` over there — deliberately not here.
   **Any DNS or Cloudflare change needs per-change authorization and goes through ops.**
 - ops already runs two Workers that are close precedents:
   - `cloudflare/workers/uptime` — D1 + KV + cron, server-rendered UI.
@@ -46,7 +53,8 @@ detail rather than by generating a bill or hard-failing.
 
 ## Decisions already locked (don't re-ask)
 
-- Hosted on Cloudflare. Custom domain `error-collector.tomsawyerlabs.com`.
+- Hosted on Cloudflare, behind a custom domain declared in ops. The hostname is
+  deployment configuration and is never committed to this repo.
 - Public, unauthenticated ingest endpoint per app — anyone holding the app can report.
 - Admin UI behind passkey (WebAuthn) login, same shape as the `ask` worker.
 - Separate scoped **read token** for agents/CI to pull datasets.
@@ -257,7 +265,7 @@ bundle should be able to tell at a glance that this is a public routing identifi
 not a leaked credential.
 
 Nice side effect: this same string drops straight into a Sentry DSN's public-key slot —
-`https://ek1.myapp.1.4.2.7f3k…@error-collector.tomsawyerlabs.com/myapp` — so one
+`https://ek1.myapp.1.4.2.7f3k…@errors.example.com/myapp` — so one
 token serves both ingest dialects.
 
 ### 3. Do **not** derive the read token from the same secret
@@ -330,10 +338,9 @@ All four opening questions were answered on 2026-09-21 and are recorded under
 1. **npm scope for the published SDKs** — `@cinderblock/*` or something else? Needs
    the org to exist on npm before the first publish workflow runs. (Placeholder-`0.0.0`
    name claim is the one sanctioned local publish; everything real ships from CI.)
-2. **ops change to declare the domain** — when the worker is ready to deploy, the
-   `cloudflare/config/workers/error-collector.yaml` addition and the
-   `error-collector.tomsawyerlabs.com` record need explicit per-change authorization.
-   Nothing will be staged in ops before then.
+2. **ops change** — `cloudflare/config/workers/error-collector.yaml` is now staged in
+   ops (dry-run verified, purely additive) but **not committed or applied**. Applying
+   it needs explicit per-change authorization.
 3. **Retention default** — AE keeps 90 days regardless. How long should D1 event rows
    and R2 screenshots live before the cleanup cron prunes them? Proposing 30 days for
    events/blobs, forever for issue rows (they're small and are the triage surface).
@@ -387,7 +394,7 @@ Things that were not obvious going in, recorded so they are not re-derived:
 ## Progress log
 
 - [x] 2026-09-21 — Surveyed ops repo: existing worker patterns, CI deploy flow,
-      passkey implementation in `ask`, DNS config for `tomsawyerlabs.com`.
+      passkey implementation in `ask`, and the DNS config layout.
 - [x] 2026-09-21 — Priced and compared every CF storage option against the four data
       classes; identified the D1 free-tier hard-fail and KV write ceiling as the two
       constraints that shape the design.
@@ -405,9 +412,17 @@ Things that were not obvious going in, recorded so they are not re-derived:
 - [x] 2026-09-21 — README, agent skill, CI (check / deploy / publish).
 - [x] 2026-09-21 — Passkey auth and the admin UI. All five governor levels probed
       against real usage ratios. 133 tests, clean typecheck.
-- [ ] **Next:** ops change — create the D1 database, KV namespace, R2 bucket and AE
-      dataset, and declare `error-collector.tomsawyerlabs.com`. Needs explicit
-      per-change authorization.
+- [x] 2026-09-21 — Renamed the npm scope to `@cinderblock`; pushed to
+      `github.com/cinderblock/error-collector` (public, default branch `master`).
+- [x] 2026-09-21 — Removed every hardcoded deployment hostname: the SDK and CLI now
+      require an explicit endpoint, `RP_ID`/`ORIGIN` were dead config and are gone,
+      and CI smoke-tests against a `DEPLOY_URL` variable.
+- [x] 2026-09-21 — Staged the ops config (`cloudflare/config/workers/error-collector.yaml`
+      plus `plans/error-collector-cloudflare.md`). Dry-run: 2 resources to create, 0
+      updates, 0 deletes. Not committed, not applied.
+- [ ] **Next:** apply the ops change — creates the D1 database and KV namespace —
+      then create the R2 bucket by hand (the sync system does not manage R2, and
+      wrangler will not create one). Needs explicit per-change authorization.
 - [ ] Set repo secrets/variables: `CLOUDFLARE_API_TOKEN`, `D1_DATABASE_ID`,
       `KV_NAMESPACE_ID`, `CLOUDFLARE_ACCOUNT_ID`; worker secrets `SECRET_KEK`,
       `AUTH_SECRET`, `BOOTSTRAP_TOKEN`.

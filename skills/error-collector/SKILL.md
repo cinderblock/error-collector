@@ -5,9 +5,13 @@ description: Wire a project up to the error-collector backend, or pull its colle
 
 # error-collector
 
-A self-hosted crash and feedback collector running on Cloudflare at
-`error-collector.tomsawyerlabs.com`. This skill covers the two things an agent does
-with it: **wiring a project up to it**, and **reading the data to fix things**.
+A self-hosted crash and feedback collector running on Cloudflare. This skill covers
+the two things an agent does with it: **wiring a project up to it**, and **reading the
+data to fix things**.
+
+**Where is it?** There is no canonical server and no hostname baked into anything —
+read `ERROR_COLLECTOR_URL` from the environment. If it is not set, ask the user for
+their deployment's URL rather than guessing one.
 
 ## Credentials — read this before touching anything
 
@@ -34,7 +38,8 @@ have, so a leak means re-keying every deployed copy.
 Start here when asked about reported bugs, production errors, or user feedback.
 
 ```sh
-export ERROR_COLLECTOR_TOKEN=ert_…       # ask the user if it isn't already set
+export ERROR_COLLECTOR_URL=https://…     # the user's deployment
+export ERROR_COLLECTOR_TOKEN=ert_…       # ask the user if either isn't already set
 
 error-collector digest --app <app-id> --since 7d
 ```
@@ -130,6 +135,7 @@ import { init } from '@cinderblock/error-collector';
 import { installBrowserHandlers } from '@cinderblock/error-collector/browser';
 
 const client = init({
+  endpoint: import.meta.env.VITE_ERROR_COLLECTOR_URL, // required — no default exists
   ingestKey: import.meta.env.VITE_ERROR_COLLECTOR_KEY,
   release: import.meta.env.VITE_GIT_SHA,
   environment: import.meta.env.MODE,
@@ -141,6 +147,7 @@ Node / server-side — here, and **only** here, add attestation:
 
 ```ts
 const client = init({
+  endpoint: process.env.ERROR_COLLECTOR_URL!,
   ingestKey: process.env.ERROR_COLLECTOR_INGEST_KEY!,
   appSecret: process.env.ERROR_COLLECTOR_APP_SECRET, // signs reports; server-side only
   release: process.env.GIT_SHA,
@@ -171,7 +178,7 @@ and shows a picker, so only use it from a button the user pressed.
 There is no SDK to install. One HTTP call is the whole protocol:
 
 ```sh
-curl -X POST "https://error-collector.tomsawyerlabs.com/i/$INGEST_KEY" \
+curl -X POST "$ERROR_COLLECTOR_URL/i/$INGEST_KEY" \
   -H 'content-type: application/json' \
   -d '{"level":"error","message":"…","release":"1.4.2",
        "exception":{"type":"IOError","value":"…"}}'
@@ -192,6 +199,8 @@ signs automatically when `ERROR_COLLECTOR_APP_SECRET` is present.
   attempt still costs the app's daily quota. Report once per distinct failure.
 - **Don't put an app id with a dot in it** anywhere. Key parsing splits on the first
   dot for the app and the last for the MAC.
+- **Don't hardcode a backend hostname** in a project you are wiring up, and don't
+  copy one out of another project. It goes in that project's env/CI config.
 - **Don't treat a 429 as a bug.** It means the app's daily quota or the account budget
   is exhausted; back off and tell the user their budget needs raising.
 - **A `stored: "counted"` response is success**, not failure. The report was counted but
@@ -201,7 +210,7 @@ signs automatically when `ERROR_COLLECTOR_APP_SECRET` is present.
 
 | Thing       | Value                                                                                                      |
 | ----------- | ---------------------------------------------------------------------------------------------------------- |
-| Backend     | `https://error-collector.tomsawyerlabs.com`                                                                |
+| Backend     | `$ERROR_COLLECTOR_URL` — no default; ask the user if unset                                                 |
 | Ingest      | `POST /i/<ingestKey>` — JSON, or multipart with a `report` field plus `screenshot`                         |
 | Dataset     | `GET /api/digest`, `/api/issues`, `/api/issues/:id`, `/api/apps`, `/api/blob/:key`                         |
 | Auth (read) | `Authorization: Bearer ert_…`                                                                              |

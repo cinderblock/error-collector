@@ -75,6 +75,7 @@ import { init } from '@cinderblock/error-collector';
 import { installBrowserHandlers, captureScreenshot } from '@cinderblock/error-collector/browser';
 
 const client = init({
+  endpoint: 'https://errors.example.com', // your deployment — there is no default
   ingestKey: 'ek1.gate-manager.1.4.2.cc5g1c36bb3je8d7vmatrb59fm', // safe to commit
   release: '1.4.2',
   environment: 'prod',
@@ -101,6 +102,7 @@ import { init } from '@cinderblock/error-collector';
 import { installNodeHandlers } from '@cinderblock/error-collector/node';
 
 const client = init({
+  endpoint: process.env.ERROR_COLLECTOR_URL!,
   ingestKey: process.env.ERROR_COLLECTOR_INGEST_KEY!,
   appSecret: process.env.ERROR_COLLECTOR_APP_SECRET, // server only — enables attestation
   release: process.env.GIT_SHA,
@@ -123,6 +125,7 @@ curl -X POST "$URL/i/$INGEST_KEY" \
 ## Reading the data
 
 ```sh
+export ERROR_COLLECTOR_URL=https://errors.example.com
 export ERROR_COLLECTOR_TOKEN=ert_…
 
 error-collector digest --app gate-manager --since 7d   # everything, one call
@@ -211,9 +214,16 @@ Deploys happen in **CI only** — never `wrangler deploy` by hand, and npm packa
 published only by the release workflow, with provenance. A `prepublishOnly` guard makes
 a local publish fail rather than merely discouraging it.
 
-The custom domain `error-collector.tomsawyerlabs.com` and the D1/R2/KV/AE bindings are
-declared in the [ops](https://github.com/cinderblock/ops) repo, which is the single
-source of truth for Cloudflare configuration.
+**No hostname is committed anywhere in this repo.** It is self-hosted software, so
+where a given copy lives is a property of that deployment, not of the source: the SDK
+and CLI require an `endpoint`, the smoke test reads a `DEPLOY_URL` repo variable, and
+the WebAuthn relying party is derived from the request URL at runtime. My own
+deployment's custom domain and D1/R2/KV/AE bindings are declared in a separate
+infrastructure repo.
+
+Resources the deploy needs to exist first: a D1 database, a KV namespace, and an R2
+bucket (`wrangler r2 bucket create …` — wrangler will not create one for you). The
+Analytics Engine dataset needs nothing; it springs into existence on first write.
 
 ## Repository layout
 

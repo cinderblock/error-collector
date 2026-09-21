@@ -73,8 +73,13 @@ jobs:
             const key = await deriveIngestKey(secret, 'a', '1.2.3');
             if (!(await verifyIngestKey(secret, key))) throw new Error('key round-trip broken');
 
-            const client = init({ ingestKey: key });
-            if (!client.url.endsWith('/i/' + key)) throw new Error('client url wrong: ' + client.url);
+            const client = init({ endpoint: 'https://errors.example.com', ingestKey: key });
+            if (client.url !== 'https://errors.example.com/i/' + key) throw new Error('client url wrong: ' + client.url);
+
+            // A published SDK must never have a built-in default server.
+            let threw = false;
+            try { init({ ingestKey: key }); } catch { threw = true; }
+            if (!threw) throw new Error('init accepted a missing endpoint');
 
             console.log('ok on ' + process.version);
           "

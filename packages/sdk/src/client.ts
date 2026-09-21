@@ -20,12 +20,19 @@ import {
 } from '@cinderblock/error-collector-core';
 import { exceptionChain, parseStack } from './stack.js';
 
-export const DEFAULT_ENDPOINT = 'https://error-collector.tomsawyerlabs.com';
-
 export interface InitOptions {
+  /**
+   * Base URL of **your** error-collector deployment, e.g.
+   * `https://errors.example.com`.
+   *
+   * Deliberately required, with no default. This is self-hosted software: there is
+   * no canonical server, and a default would mean an app that forgot to configure
+   * one silently shipped its users' crashes to whoever happens to own that
+   * hostname. Failing at `init` is the only safe behaviour.
+   */
+  endpoint: string;
   /** The public `ek1.…` key. Safe to commit and to ship in a client bundle. */
   ingestKey: string;
-  endpoint?: string;
   release?: string;
   environment?: string;
   /**
@@ -61,13 +68,19 @@ export class Client {
   private sending = false;
 
   constructor(options: InitOptions) {
+    if (!options.endpoint?.trim()) {
+      throw new Error('error-collector: `endpoint` is required — the URL of your own deployment');
+    }
+    if (!options.ingestKey?.trim()) {
+      throw new Error('error-collector: `ingestKey` is required');
+    }
     this.options = options;
     this.user = options.user;
     this.tags = { ...options.tags };
   }
 
   get endpoint(): string {
-    return (this.options.endpoint ?? DEFAULT_ENDPOINT).replace(/\/+$/, '');
+    return this.options.endpoint.replace(/\/+$/, '');
   }
 
   get url(): string {

@@ -4,8 +4,11 @@ compatibility_date = "2026-09-01"
 compatibility_flags = ["nodejs_compat"]
 upload_source_maps = true
 
-# Domain: error-collector.tomsawyerlabs.com, declared in the ops repo at
-# cloudflare/config/workers/error-collector.yaml. Deploys happen in CI only.
+# This file carries no hostname on purpose. The custom domain is declared wherever
+# this instance is deployed from (mine lives in a separate infrastructure repo), and
+# the WebAuthn relying party is derived from the request URL at runtime — so the same
+# committed config works on localhost, on a preview, and in production.
+# Deploys happen in CI only.
 
 [triggers]
 # Every minute: refresh the budget governor from Analytics Engine.
@@ -22,8 +25,6 @@ crons = ["* * * * *"]
 #   CF_ACCOUNT_ID / CF_ANALYTICS_TOKEN — for the governor's Analytics Engine SQL queries
 #                     and for optional Workers-plan detection
 RP_NAME = "error-collector"
-RP_ID = "error-collector.tomsawyerlabs.com"
-ORIGIN = "https://error-collector.tomsawyerlabs.com"
 # Sole owner for now. The schema carries owner_id everywhere so real accounts are
 # later an addition rather than a migration.
 OWNER_ID = "cameron"

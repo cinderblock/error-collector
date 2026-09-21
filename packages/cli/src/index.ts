@@ -22,8 +22,6 @@ import {
   type ReportPayload,
 } from '@cinderblock/error-collector-core';
 
-const DEFAULT_URL = 'https://error-collector.tomsawyerlabs.com';
-
 interface Flags {
   [key: string]: string | boolean;
 }
@@ -63,8 +61,11 @@ function fail(message: string): never {
   process.exit(1);
 }
 
+/** No default: this is self-hosted software, so only you know where your copy lives. */
 function endpoint(flags: Flags): string {
-  return (str(flags, 'url', 'ERROR_COLLECTOR_URL') ?? DEFAULT_URL).replace(/\/+$/, '');
+  const url = str(flags, 'url', 'ERROR_COLLECTOR_URL');
+  if (!url) fail('set ERROR_COLLECTOR_URL (or pass --url) to your deployment, e.g. https://errors.example.com');
+  return url.replace(/\/+$/, '');
 }
 
 async function api(flags: Flags, path: string, params: Record<string, string | undefined> = {}): Promise<unknown> {
@@ -93,7 +94,7 @@ const HELP = `error-collector — report errors and pull triage data
   report    --key <ingestKey> --message   send a report (e.g. from a CI failure)
 
 Credentials, by environment variable:
-  ERROR_COLLECTOR_URL           backend base URL (default ${DEFAULT_URL})
+  ERROR_COLLECTOR_URL           base URL of your deployment (required)
   ERROR_COLLECTOR_APP_SECRET    ecs_… — build/CI only, derives ingest keys
   ERROR_COLLECTOR_TOKEN         ert_… — read token for the triage commands
 
