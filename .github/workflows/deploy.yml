@@ -19,7 +19,27 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # "Not set up yet" is a legitimate state for this repo — it is public, and a fork
+  # has it by definition — so it is a skip with a notice, not a failure. A red X on
+  # every push before the Cloudflare resources exist just trains you to ignore the
+  # one that matters. Once D1_DATABASE_ID is set, the deploy runs and any *real*
+  # misconfiguration below still fails loudly.
+  configured:
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ vars.D1_DATABASE_ID != '' }}
+    steps:
+      - name: Report configuration state
+        run: |
+          if [ -n "${{ vars.D1_DATABASE_ID }}" ]; then
+            echo "::notice::deployment is configured; proceeding"
+          else
+            echo "::notice::D1_DATABASE_ID is not set — skipping deploy. Create the Cloudflare resources, then set the D1_DATABASE_ID, KV_NAMESPACE_ID and CLOUDFLARE_ACCOUNT_ID repository variables and the CLOUDFLARE_API_TOKEN secret."
+          fi
+
   deploy:
+    needs: configured
+    if: needs.configured.outputs.ready == 'true'
     runs-on: ubuntu-latest
     environment: production
     steps:
@@ -43,6 +63,8 @@ jobs:
       - name: Point bindings at the production resources
         working-directory: worker
         run: |
+          # D1_DATABASE_ID is already known to be set (the job would not be running
+          # otherwise). A half-configured deployment is a real error, so it still fails.
           for pair in "D1_DATABASE_ID:${{ vars.D1_DATABASE_ID }}" "KV_NAMESPACE_ID:${{ vars.KV_NAMESPACE_ID }}"; do
             name="${pair%%:*}"; value="${pair#*:}"
             if [ -z "$value" ]; then
