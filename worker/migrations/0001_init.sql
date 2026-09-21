@@ -128,10 +128,34 @@ CREATE TABLE devices (
   name         TEXT NOT NULL,
   public_key   TEXT NOT NULL,                  -- COSE key, base64url
   counter      INTEGER NOT NULL DEFAULT 0,
+  transports   TEXT,                           -- JSON array; lets the browser prompt for the right device
   created_at   INTEGER NOT NULL,
   last_used_at INTEGER
 );
 CREATE INDEX devices_owner ON devices (owner_id);
+
+-- WebAuthn challenges. Held server-side and single-use, because a challenge a
+-- client could choose or replay is not a challenge: the whole point is that the
+-- authenticator signed something only this server could have asked for.
+CREATE TABLE auth_state (
+  id         TEXT PRIMARY KEY,
+  kind       TEXT NOT NULL,                    -- registration | authentication
+  value      TEXT NOT NULL,
+  used       INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+CREATE INDEX auth_state_prune ON auth_state (expires_at);
+
+-- Single-use links that let an already-trusted device enrol a new one, so the
+-- bootstrap token is needed exactly once in the service's life.
+CREATE TABLE device_invites (
+  id         TEXT PRIMARY KEY,
+  owner_id   TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  used_at    INTEGER
+);
 
 CREATE TABLE sessions (
   id         TEXT PRIMARY KEY,

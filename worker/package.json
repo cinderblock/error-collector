@@ -11,6 +11,7 @@
     "deploy": "echo 'Deploy via CI only — push to master or dispatch .github/workflows/deploy.yml' && exit 1"
   },
   "dependencies": {
+    "@simplewebauthn/server": "^14.0.2",
     "@tomsawyerlabs/error-collector-core": "workspace:*"
   }
 }

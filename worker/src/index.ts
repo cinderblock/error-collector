@@ -1,6 +1,7 @@
+import { handleReadApi } from './api/read.js';
+import { handleAdmin, isAdminPath } from './admin/routes.js';
 import { runScheduled } from './cron.js';
 import type { Env } from './env.js';
-import { handleReadApi } from './api/read.js';
 import { handleIngest, preflight } from './ingest/native.js';
 
 function notFound(): Response {
@@ -18,10 +19,8 @@ async function route(request: Request, env: Env): Promise<Response> {
     return new Response('ok\n', { headers: { 'content-type': 'text/plain; charset=utf-8' } });
   }
 
-  if (path.startsWith('/api/')) {
-    return handleReadApi(request, env, path);
-  }
-
+  // Ingest first: it is the only hot path, and the only one that must stay fast and
+  // dependency-free even when everything else is misconfigured.
   if (path.startsWith('/i/')) {
     if (request.method === 'OPTIONS') return preflight();
     if (request.method !== 'POST') {
@@ -31,6 +30,14 @@ async function route(request: Request, env: Env): Promise<Response> {
       });
     }
     return handleIngest(request, env, decodeURIComponent(path.slice('/i/'.length)));
+  }
+
+  if (path.startsWith('/api/')) {
+    return handleReadApi(request, env, path);
+  }
+
+  if (isAdminPath(path)) {
+    return handleAdmin(request, env, url);
   }
 
   return notFound();
