@@ -156,12 +156,12 @@ export function layout({ title, authed = true, body, head = '' }: LayoutOptions)
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
-<title>${escapeHtml(title)} — error-collector</title>
+<title>${escapeHtml(title)} — telemetry-collector</title>
 <style>${STYLES}</style>
 ${head}
 </head>
 <body>
-<header class="top"><span class="brand"><a href="/">error-collector</a></span>${nav}</header>
+<header class="top"><span class="brand"><a href="/">telemetry-collector</a></span>${nav}</header>
 <main>${body}</main>
 </body>
 </html>`;

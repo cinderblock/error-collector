@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * `error-collector` — the command line for CI and coding agents.
+ * `telemetry-collector` — the command line for CI and coding agents.
  *
  * Two jobs, and they use different credentials on purpose:
  *
@@ -20,7 +20,7 @@ import {
   isValidChannel,
   signReport,
   type ReportPayload,
-} from '@cinderblock/error-collector-core';
+} from '@cinderblock/telemetry-collector-core';
 
 interface Flags {
   [key: string]: string | boolean;
@@ -57,20 +57,20 @@ function str(flags: Flags, name: string, envVar?: string): string | undefined {
 }
 
 function fail(message: string): never {
-  console.error(`error-collector: ${message}`);
+  console.error(`telemetry-collector: ${message}`);
   process.exit(1);
 }
 
 /** No default: this is self-hosted software, so only you know where your copy lives. */
 function endpoint(flags: Flags): string {
-  const url = str(flags, 'url', 'ERROR_COLLECTOR_URL');
-  if (!url) fail('set ERROR_COLLECTOR_URL (or pass --url) to your deployment, e.g. https://errors.example.com');
+  const url = str(flags, 'url', 'TELEMETRY_COLLECTOR_URL');
+  if (!url) fail('set TELEMETRY_COLLECTOR_URL (or pass --url) to your deployment, e.g. https://errors.example.com');
   return url.replace(/\/+$/, '');
 }
 
 async function api(flags: Flags, path: string, params: Record<string, string | undefined> = {}): Promise<unknown> {
-  const token = str(flags, 'token', 'ERROR_COLLECTOR_TOKEN');
-  if (!token) fail('a read token is required (--token or ERROR_COLLECTOR_TOKEN)');
+  const token = str(flags, 'token', 'TELEMETRY_COLLECTOR_TOKEN');
+  if (!token) fail('a read token is required (--token or TELEMETRY_COLLECTOR_TOKEN)');
 
   const url = new URL(`${endpoint(flags)}${path}`);
   for (const [key, value] of Object.entries(params)) {
@@ -84,7 +84,7 @@ async function api(flags: Flags, path: string, params: Record<string, string | u
   return response.json();
 }
 
-const HELP = `error-collector — report errors and pull triage data
+const HELP = `telemetry-collector — report errors and pull triage data
 
   key       --app <id> --channel <ch>     derive the public ingest key (offline)
   digest    --app <id> [--since 7d]       everything an agent needs, one call
@@ -94,9 +94,9 @@ const HELP = `error-collector — report errors and pull triage data
   report    --key <ingestKey> --message   send a report (e.g. from a CI failure)
 
 Credentials, by environment variable:
-  ERROR_COLLECTOR_URL           base URL of your deployment (required)
-  ERROR_COLLECTOR_APP_SECRET    ecs_… — build/CI only, derives ingest keys
-  ERROR_COLLECTOR_TOKEN         ert_… — read token for the triage commands
+  TELEMETRY_COLLECTOR_URL           base URL of your deployment (required)
+  TELEMETRY_COLLECTOR_APP_SECRET    ecs_… — build/CI only, derives ingest keys
+  TELEMETRY_COLLECTOR_TOKEN         ert_… — read token for the triage commands
 
 Common flags: --json (raw output), --url, --token, --limit, --since, --channel,
 --release, --kind, --status, --q
@@ -108,15 +108,15 @@ async function main(): Promise<void> {
 
   switch (command) {
     case 'key': {
-      const secret = str(flags, 'secret', 'ERROR_COLLECTOR_APP_SECRET');
-      if (!secret) fail('an app secret is required (--secret or ERROR_COLLECTOR_APP_SECRET)');
+      const secret = str(flags, 'secret', 'TELEMETRY_COLLECTOR_APP_SECRET');
+      if (!secret) fail('an app secret is required (--secret or TELEMETRY_COLLECTOR_APP_SECRET)');
 
       const app = str(flags, 'app') ?? positional[0];
       const channel = str(flags, 'channel') ?? positional[1];
       if (!app || !isValidAppId(app)) fail('--app must be a lowercase id with no dots');
       if (!channel || !isValidChannel(channel)) fail('--channel is required (a version, git sha, or environment)');
 
-      // Printed bare so a build can do: KEY=$(error-collector key --app x --channel $VERSION)
+      // Printed bare so a build can do: KEY=$(telemetry-collector key --app x --channel $VERSION)
       console.log(await deriveIngestKey(secret, app, channel));
       return;
     }
@@ -161,7 +161,7 @@ async function main(): Promise<void> {
 
     case 'issue': {
       const id = positional[0];
-      if (!id) fail('usage: error-collector issue <issue-id>');
+      if (!id) fail('usage: telemetry-collector issue <issue-id>');
       console.log(JSON.stringify(await api(flags, `/api/issues/${id}`, { limit: str(flags, 'limit') }), null, 2));
       return;
     }
@@ -188,13 +188,13 @@ async function main(): Promise<void> {
       return;
 
     default:
-      fail(`unknown command ${JSON.stringify(command)} — try \`error-collector help\``);
+      fail(`unknown command ${JSON.stringify(command)} — try \`telemetry-collector help\``);
   }
 }
 
 async function report(flags: Flags, positional: string[]): Promise<void> {
-  const key = str(flags, 'key', 'ERROR_COLLECTOR_INGEST_KEY');
-  if (!key) fail('--key (or ERROR_COLLECTOR_INGEST_KEY) is required');
+  const key = str(flags, 'key', 'TELEMETRY_COLLECTOR_INGEST_KEY');
+  if (!key) fail('--key (or TELEMETRY_COLLECTOR_INGEST_KEY) is required');
 
   const message = str(flags, 'message') ?? positional.join(' ');
   if (!message) fail('--message is required');
@@ -214,7 +214,7 @@ async function report(flags: Flags, positional: string[]): Promise<void> {
 
   // CI holds the app secret anyway (it derives ingest keys with it), so signing
   // here is free and marks the report as provably ours.
-  const secret = str(flags, 'secret', 'ERROR_COLLECTOR_APP_SECRET');
+  const secret = str(flags, 'secret', 'TELEMETRY_COLLECTOR_APP_SECRET');
   if (secret) {
     const timestamp = Math.floor(Date.now() / 1000);
     headers['x-report-signature'] = await signReport(secret, timestamp, body);
@@ -316,6 +316,6 @@ interface StackLine {
 }
 
 main().catch((error: unknown) => {
-  console.error(`error-collector: ${error instanceof Error ? error.message : String(error)}`);
+  console.error(`telemetry-collector: ${error instanceof Error ? error.message : String(error)}`);
   process.exit(1);
 });

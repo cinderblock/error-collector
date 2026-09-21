@@ -134,7 +134,7 @@ export function timingSafeEqual(a: string, b: string): boolean {
  * means a future key format cannot collide with this one.
  */
 function ingestContext(appId: string, channel: string): string {
-  return `error-collector.ingest.v1\n${appId}\n${channel}`;
+  return `telemetry-collector.ingest.v1\n${appId}\n${channel}`;
 }
 
 export interface ParsedIngestKey {
@@ -208,7 +208,7 @@ export async function verifyIngestKey(appSecret: string | Uint8Array, key: strin
 
 /** Read tokens are stored only as this digest, so a database leak yields nothing usable. */
 export function hashReadToken(token: string): Promise<string> {
-  return sha256Hex(`error-collector.read-token.v1\n${token}`);
+  return sha256Hex(`telemetry-collector.read-token.v1\n${token}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -228,7 +228,7 @@ export async function signReport(appSecret: string | Uint8Array, timestamp: numb
   const secret = typeof appSecret === 'string' ? parseAppSecret(appSecret) : appSecret;
   if (!secret) throw new Error('invalid app secret');
 
-  const mac = await hmac(secret, `error-collector.report.v1\n${timestamp}\n${body}`);
+  const mac = await hmac(secret, `telemetry-collector.report.v1\n${timestamp}\n${body}`);
   return `v1=${toHex(mac)}`;
 }
 

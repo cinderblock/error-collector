@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "error-collector-monorepo",
+      "name": "telemetry-collector-monorepo",
       "devDependencies": {
         "@cloudflare/workers-types": "^5.20260921.1",
         "@types/bun": "^1.4.2",
@@ -14,32 +14,32 @@
       },
     },
     "packages/cli": {
-      "name": "@cinderblock/error-collector-cli",
+      "name": "@cinderblock/telemetry-collector-cli",
       "version": "0.0.0",
       "bin": {
-        "error-collector": "./dist/index.js",
+        "telemetry-collector": "./dist/index.js",
       },
       "dependencies": {
-        "@cinderblock/error-collector-core": "workspace:*",
+        "@cinderblock/telemetry-collector-core": "workspace:*",
       },
     },
     "packages/core": {
-      "name": "@cinderblock/error-collector-core",
+      "name": "@cinderblock/telemetry-collector-core",
       "version": "0.0.0",
     },
     "packages/sdk": {
-      "name": "@cinderblock/error-collector",
+      "name": "@cinderblock/telemetry-collector",
       "version": "0.0.0",
       "dependencies": {
-        "@cinderblock/error-collector-core": "workspace:*",
+        "@cinderblock/telemetry-collector-core": "workspace:*",
       },
     },
     "worker": {
-      "name": "error-collector-worker",
+      "name": "telemetry-collector-worker",
       "version": "0.0.0",
       "dependencies": {
         "@simplewebauthn/server": "^14.0.2",
-        "@cinderblock/error-collector-core": "workspace:*",
+        "@cinderblock/telemetry-collector-core": "workspace:*",
       },
     },
   },
@@ -222,11 +222,11 @@
 
     "@speed-highlight/core": ["@speed-highlight/core@1.2.24", "", {}, "sha512-qeW2e1l78afw8VhRPfPQ1Gjj+KU5XFQ/OFV5ti6eTa9bruO7mJyZtA4vw0ofqmA3tKCkROE9xLk3VZoeRc98nw=="],
 
-    "@cinderblock/error-collector": ["@cinderblock/error-collector@workspace:packages/sdk"],
+    "@cinderblock/telemetry-collector": ["@cinderblock/telemetry-collector@workspace:packages/sdk"],
 
-    "@cinderblock/error-collector-cli": ["@cinderblock/error-collector-cli@workspace:packages/cli"],
+    "@cinderblock/telemetry-collector-cli": ["@cinderblock/telemetry-collector-cli@workspace:packages/cli"],
 
-    "@cinderblock/error-collector-core": ["@cinderblock/error-collector-core@workspace:packages/core"],
+    "@cinderblock/telemetry-collector-core": ["@cinderblock/telemetry-collector-core@workspace:packages/core"],
 
     "@types/bun": ["@types/bun@1.4.2", "", { "dependencies": { "bun-types": "1.4.2" } }, "sha512-GimotNn7+ZV0uVArItBbriZsR1oNf0+WTzPkdcFrzShI7k2norL0uzEaJT8T33dWr7O/c9ZDuAFQrctKCi72oQ=="],
 
@@ -242,7 +242,7 @@
 
     "detect-libc": ["detect-libc@2.1.2", "", {}, "sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ=="],
 
-    "error-collector-worker": ["error-collector-worker@workspace:worker"],
+    "telemetry-collector-worker": ["telemetry-collector-worker@workspace:worker"],
 
     "error-stack-parser-es": ["error-stack-parser-es@1.0.5", "", {}, "sha512-5qucVt2XcuGMcEGgWI7i+yZpmpByQ8J1lHhcL7PwqCwu9FPP3VUXzT4ltHe5i2z9dePwEHcDVOAfSnHsOlCXRA=="],
 

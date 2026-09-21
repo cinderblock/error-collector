@@ -8,7 +8,7 @@
 import { rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { generateReadToken, hashReadToken } from '@cinderblock/error-collector-core';
+import { generateReadToken, hashReadToken } from '@cinderblock/telemetry-collector-core';
 
 const args = process.argv.slice(2);
 const write = args.includes('--write');
@@ -33,7 +33,7 @@ writeFileSync(
 
 const result = spawnSync(
   process.platform === 'win32' ? 'bunx.exe' : 'bunx',
-  ['wrangler', 'd1', 'execute', 'ERRORS_DB', '--local', '--file', fileURLToPath(sqlPath)],
+  ['wrangler', 'd1', 'execute', 'TELEMETRY_DB', '--local', '--file', fileURLToPath(sqlPath)],
   { stdio: 'inherit' },
 );
 rmSync(sqlPath, { force: true });

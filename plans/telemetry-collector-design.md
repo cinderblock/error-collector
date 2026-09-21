@@ -1,4 +1,4 @@
-# error-collector — design
+# telemetry-collector — design
 
 A cheap, self-hosted place to collect errors, user feedback and screenshots from
 the apps I'm developing, running entirely on Cloudflare.
@@ -7,7 +7,7 @@ the apps I'm developing, running entirely on Cloudflare.
 property of that deployment, not of the source — so the SDK and CLI require an
 explicit endpoint, CI reads a `DEPLOY_URL` variable, and the WebAuthn relying party
 is derived from the request URL. My own deployment's hostname and Cloudflare
-resources are recorded in the ops repo (`plans/error-collector-cloudflare.md`).
+resources are recorded in the ops repo (`plans/telemetry-collector-cloudflare.md`).
 
 Status: **built and verified locally; not yet deployed.** Every piece below exists
 and has been exercised against a local D1/R2/KV. The remaining work is the ops change
@@ -38,8 +38,8 @@ detail rather than by generating a bill or hard-failing.
   (`github.com/cinderblock/ops`, local `~/git/Personal Projects/ops`). Worker custom
   domains are declared there as `- domain: <host>` + `worker: <name>` (see
   `cloudflare/config/workers/*.yaml`). The declaration for this service, and the
-  hostname it uses, live in `cloudflare/config/workers/error-collector.yaml` and
-  `plans/error-collector-cloudflare.md` over there — deliberately not here.
+  hostname it uses, live in `cloudflare/config/workers/telemetry-collector.yaml` and
+  `plans/telemetry-collector-cloudflare.md` over there — deliberately not here.
   **Any DNS or Cloudflare change needs per-change authorization and goes through ops.**
 - ops already runs two Workers that are close precedents:
   - `cloudflare/workers/uptime` — D1 + KV + cron, server-rendered UI.
@@ -63,10 +63,10 @@ detail rather than by generating a bill or hard-failing.
 
 Settled 2026-09-21:
 
-- **Own repo.** `error-collector` is its own git repo (default branch `master`) holding
+- **Own repo.** `telemetry-collector` is its own git repo (default branch `master`) holding
   the worker _and_ the published SDK packages, with its own GitHub CI for deploy and
   for npm publish-with-provenance. **ops** gets only
-  `cloudflare/config/workers/error-collector.yaml` declaring the custom domain and the
+  `cloudflare/config/workers/telemetry-collector.yaml` declaring the custom domain and the
   D1/R2/AE/KV bindings — which is an ops change needing its own authorization when the
   time comes.
 - **Both Cloudflare tiers, governed at runtime.** No compile-time assumption about
@@ -313,7 +313,7 @@ comfortable to live with. Cheap to implement, large practical payoff.
   content_type.
 - `read_tokens` — hash, name, scope (app ids), expires_at, last_used_at.
 - `devices` / `sessions` — passkey credentials, cribbed from the `ask` worker.
-- Analytics Engine dataset `error_events` — indexed by app, blobs: channel, fingerprint,
+- Analytics Engine dataset `telemetry_events` — indexed by app, blobs: channel, fingerprint,
   level, kind; doubles: 1.
 
 ## Usage tracking (proposed, not built)
@@ -380,19 +380,19 @@ Cheaper per event than the error path by a wide margin.
 
 ### Open question
 
-If it does usage as well as errors, "error-collector" undersells it — and the repo,
+If it does usage as well as errors, "telemetry-collector" undersells it — and the repo,
 the package names and the hostname are all cheap to change now and annoying later.
 Worth settling before this is built.
 
 ## Deliverables beyond the backend
 
-1. **`@cinderblock/error-collector` (npm, published by CI with provenance)** — browser
+1. **`@cinderblock/telemetry-collector` (npm, published by CI with provenance)** — browser
    - Node reporter. `init({ ingestKey })`, global `onerror`/`unhandledrejection` hooks,
      breadcrumbs, `reportFeedback({ text, screenshot })`, offline queue.
 2. **Feedback widget** — a drop-in that captures a screenshot client-side
    (`html2canvas` or `getDisplayMedia`) and posts it with the user's text.
 3. **A `curl` recipe** — the native dialect must be usable in one line from anything.
-4. **Agent skill** (`.claude/skills/error-collector/`) — instructions for an agent to:
+4. **Agent skill** (`.claude/skills/telemetry-collector/`) — instructions for an agent to:
    register a new app, derive the ingest key at build time, wire the SDK into an
    existing project, and pull the dataset via the read token for triage.
 5. **A build-time key derivation helper** — a tiny script/CLI so CI computes
@@ -406,7 +406,7 @@ All four opening questions were answered on 2026-09-21 and are recorded under
 1. **npm scope for the published SDKs** — `@cinderblock/*` or something else? Needs
    the org to exist on npm before the first publish workflow runs. (Placeholder-`0.0.0`
    name claim is the one sanctioned local publish; everything real ships from CI.)
-2. **ops change** — `cloudflare/config/workers/error-collector.yaml` is now staged in
+2. **ops change** — `cloudflare/config/workers/telemetry-collector.yaml` is now staged in
    ops (dry-run verified, purely additive) but **not committed or applied**. Applying
    it needs explicit per-change authorization.
 3. **Retention default** — AE keeps 90 days regardless. How long should D1 event rows
@@ -481,12 +481,12 @@ Things that were not obvious going in, recorded so they are not re-derived:
 - [x] 2026-09-21 — Passkey auth and the admin UI. All five governor levels probed
       against real usage ratios. 133 tests, clean typecheck.
 - [x] 2026-09-21 — Renamed the npm scope to `@cinderblock`; pushed to
-      `github.com/cinderblock/error-collector` (public, default branch `master`).
+      `github.com/cinderblock/telemetry-collector` (public, default branch `master`).
 - [x] 2026-09-21 — Removed every hardcoded deployment hostname: the SDK and CLI now
       require an explicit endpoint, `RP_ID`/`ORIGIN` were dead config and are gone,
       and CI smoke-tests against a `DEPLOY_URL` variable.
-- [x] 2026-09-21 — Staged the ops config (`cloudflare/config/workers/error-collector.yaml`
-      plus `plans/error-collector-cloudflare.md`). Dry-run: 2 resources to create, 0
+- [x] 2026-09-21 — Staged the ops config (`cloudflare/config/workers/telemetry-collector.yaml`
+      plus `plans/telemetry-collector-cloudflare.md`). Dry-run: 2 resources to create, 0
       updates, 0 deletes. Not committed, not applied.
 - [ ] **Next:** apply the ops change — creates the D1 database and KV namespace —
       then create the R2 bucket by hand (the sync system does not manage R2, and

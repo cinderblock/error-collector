@@ -1,4 +1,4 @@
-# error-collector
+# telemetry-collector
 
 A cheap place to collect errors, user feedback and screenshots from the apps I'm
 developing. Runs entirely on Cloudflare — Workers, D1, R2, Analytics Engine, KV — and
@@ -6,7 +6,7 @@ is built to fit inside the free tier, degrading by shedding detail rather than b
 producing a bill.
 
 Design notes and the reasoning behind the architecture:
-[`plans/error-collector-design.md`](plans/error-collector-design.md).
+[`plans/telemetry-collector-design.md`](plans/telemetry-collector-design.md).
 
 ## What it does
 
@@ -37,7 +37,7 @@ What the key's MAC actually buys is **offline derivability**:
 
 ```sh
 # At build time. No network call, nothing registered anywhere.
-KEY=$(error-collector key --app gate-manager --channel "$VERSION")
+KEY=$(telemetry-collector key --app gate-manager --channel "$VERSION")
 ```
 
 The backend recomputes that MAC from the app's secret and accepts the report, creating
@@ -71,8 +71,8 @@ signing setup should be loud.
 ### Browser
 
 ```ts
-import { init } from '@cinderblock/error-collector';
-import { installBrowserHandlers, captureScreenshot } from '@cinderblock/error-collector/browser';
+import { init } from '@cinderblock/telemetry-collector';
+import { installBrowserHandlers, captureScreenshot } from '@cinderblock/telemetry-collector/browser';
 
 const client = init({
   endpoint: 'https://errors.example.com', // your deployment — there is no default
@@ -98,13 +98,13 @@ never use one. `captureScreenshot` takes a `renderer`, falls back to a global
 ### Node / server-side
 
 ```ts
-import { init } from '@cinderblock/error-collector';
-import { installNodeHandlers } from '@cinderblock/error-collector/node';
+import { init } from '@cinderblock/telemetry-collector';
+import { installNodeHandlers } from '@cinderblock/telemetry-collector/node';
 
 const client = init({
-  endpoint: process.env.ERROR_COLLECTOR_URL!,
-  ingestKey: process.env.ERROR_COLLECTOR_INGEST_KEY!,
-  appSecret: process.env.ERROR_COLLECTOR_APP_SECRET, // server only — enables attestation
+  endpoint: process.env.TELEMETRY_COLLECTOR_URL!,
+  ingestKey: process.env.TELEMETRY_COLLECTOR_INGEST_KEY!,
+  appSecret: process.env.TELEMETRY_COLLECTOR_APP_SECRET, // server only — enables attestation
   release: process.env.GIT_SHA,
 });
 
@@ -125,12 +125,12 @@ curl -X POST "$URL/i/$INGEST_KEY" \
 ## Reading the data
 
 ```sh
-export ERROR_COLLECTOR_URL=https://errors.example.com
-export ERROR_COLLECTOR_TOKEN=ert_…
+export TELEMETRY_COLLECTOR_URL=https://errors.example.com
+export TELEMETRY_COLLECTOR_TOKEN=ert_…
 
-error-collector digest --app gate-manager --since 7d   # everything, one call
-error-collector issues --app gate-manager
-error-collector issue 36738a54eb4770ec49eae33ca8db7260
+telemetry-collector digest --app gate-manager --since 7d   # everything, one call
+telemetry-collector issues --app gate-manager
+telemetry-collector issue 36738a54eb4770ec49eae33ca8db7260
 ```
 
 | Endpoint                                                         | Purpose                                                                                |
@@ -229,8 +229,8 @@ Analytics Engine dataset needs nothing; it springs into existence on first write
 
 ```
 packages/core/   key derivation, grouping, event normalization  (shared)
-packages/sdk/    @cinderblock/error-collector — the reporter
-packages/cli/    @cinderblock/error-collector-cli
+packages/sdk/    @cinderblock/telemetry-collector — the reporter
+packages/cli/    @cinderblock/telemetry-collector-cli
 worker/          the Cloudflare Worker: ingest, API, admin, cron
 skills/          agent instructions for wiring this into a project
 plans/           design notes

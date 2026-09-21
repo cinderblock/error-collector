@@ -5,7 +5,7 @@
  * and a database leak yields nothing replayable.
  */
 
-import { hashReadToken } from '@cinderblock/error-collector-core';
+import { hashReadToken } from '@cinderblock/telemetry-collector-core';
 import type { Env } from '../env.js';
 import { nowSeconds } from '../env.js';
 

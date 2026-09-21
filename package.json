@@ -1,5 +1,5 @@
 {
-  "name": "error-collector-monorepo",
+  "name": "telemetry-collector-monorepo",
   "private": true,
   "workspaces": [
     "packages/*",

@@ -1,17 +1,17 @@
 {
-  "name": "error-collector-worker",
+  "name": "telemetry-collector-worker",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
     "typecheck": "tsc --noEmit",
-    "migrate:local": "wrangler d1 migrations apply ERRORS_DB --local",
-    "migrate:remote": "wrangler d1 migrations apply ERRORS_DB --remote",
+    "migrate:local": "wrangler d1 migrations apply TELEMETRY_DB --local",
+    "migrate:remote": "wrangler d1 migrations apply TELEMETRY_DB --remote",
     "deploy": "echo 'Deploy via CI only — push to master or dispatch .github/workflows/deploy.yml' && exit 1"
   },
   "dependencies": {
     "@simplewebauthn/server": "^14.0.2",
-    "@cinderblock/error-collector-core": "workspace:*"
+    "@cinderblock/telemetry-collector-core": "workspace:*"
   }
 }

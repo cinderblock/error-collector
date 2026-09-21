@@ -1,11 +1,11 @@
 {
-  "name": "@cinderblock/error-collector-cli",
+  "name": "@cinderblock/telemetry-collector-cli",
   "version": "0.0.0",
   "description": "Derive ingest keys at build time and pull error datasets for triage.",
   "type": "module",
   "license": "MIT",
   "bin": {
-    "error-collector": "./dist/index.js"
+    "telemetry-collector": "./dist/index.js"
   },
   "exports": {
     ".": {
@@ -25,11 +25,11 @@
     "prepublishOnly": "bun run ../../scripts/guard-publish.ts && bun run build"
   },
   "dependencies": {
-    "@cinderblock/error-collector-core": "workspace:*"
+    "@cinderblock/telemetry-collector-core": "workspace:*"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/cinderblock/error-collector.git",
+    "url": "git+https://github.com/cinderblock/telemetry-collector.git",
     "directory": "packages/cli"
   }
 }

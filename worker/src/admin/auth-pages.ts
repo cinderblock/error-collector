@@ -16,7 +16,7 @@ import {
   verifyAuthentication,
   verifyRegistration,
 } from '../auth/webauthn.js';
-import { timingSafeEqual } from '@cinderblock/error-collector-core';
+import { timingSafeEqual } from '@cinderblock/telemetry-collector-core';
 import { claimInvite, createSession, sessionCookie } from '../auth/tokens.js';
 import { escapeHtml, html, layout } from './ui.js';
 

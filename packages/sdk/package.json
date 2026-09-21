@@ -1,7 +1,7 @@
 {
-  "name": "@cinderblock/error-collector",
+  "name": "@cinderblock/telemetry-collector",
   "version": "0.0.0",
-  "description": "Report errors, messages and user feedback (with screenshots) to an error-collector backend.",
+  "description": "Report errors, messages and user feedback (with screenshots) to an telemetry-collector backend.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
@@ -31,11 +31,11 @@
     "prepublishOnly": "bun run ../../scripts/guard-publish.ts && bun run build"
   },
   "dependencies": {
-    "@cinderblock/error-collector-core": "workspace:*"
+    "@cinderblock/telemetry-collector-core": "workspace:*"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/cinderblock/error-collector.git",
+    "url": "git+https://github.com/cinderblock/telemetry-collector.git",
     "directory": "packages/sdk"
   }
 }

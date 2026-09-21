@@ -1,4 +1,4 @@
-name = "error-collector"
+name = "telemetry-collector"
 main = "src/index.ts"
 compatibility_date = "2026-09-01"
 compatibility_flags = ["nodejs_compat"]
@@ -24,17 +24,17 @@ crons = ["* * * * *"]
 #   BOOTSTRAP_TOKEN — one-time first-passkey registration; honored only while zero devices exist
 #   CF_ACCOUNT_ID / CF_ANALYTICS_TOKEN — for the governor's Analytics Engine SQL queries
 #                     and for optional Workers-plan detection
-RP_NAME = "error-collector"
+RP_NAME = "telemetry-collector"
 # Sole owner for now. The schema carries owner_id everywhere so real accounts are
 # later an addition rather than a migration.
 OWNER_ID = "cameron"
 OWNER_NAME = "cameron"
-AE_DATASET = "error_events"
+AE_DATASET = "telemetry_events"
 
 # Local dev only — the ops sync system manages these for production.
 [[d1_databases]]
 binding = "DB"
-database_name = "ERRORS_DB"
+database_name = "TELEMETRY_DB"
 database_id = "local"
 
 [[kv_namespaces]]
@@ -43,11 +43,11 @@ id = "local"
 
 [[r2_buckets]]
 binding = "BLOBS"
-bucket_name = "error-collector-blobs"
+bucket_name = "telemetry-collector-blobs"
 
 [[analytics_engine_datasets]]
 binding = "AE"
-dataset = "error_events"
+dataset = "telemetry_events"
 
 # Cheap first line of defence on the world-open ingest endpoint. Deliberately
 # generous — a genuinely crashing app is *supposed* to be loud, and the budget

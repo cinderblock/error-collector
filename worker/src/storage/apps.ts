@@ -8,7 +8,7 @@
  * cannot be used to fill the table with junk.
  */
 
-import { generateAppSecret, isValidAppId } from '@cinderblock/error-collector-core';
+import { generateAppSecret, isValidAppId } from '@cinderblock/telemetry-collector-core';
 import { memo, forget } from '../cache.js';
 import type { Env } from '../env.js';
 import { nowSeconds } from '../env.js';

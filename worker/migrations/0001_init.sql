@@ -1,4 +1,4 @@
--- error-collector schema.
+-- telemetry-collector schema.
 --
 -- Two things shape this file:
 --

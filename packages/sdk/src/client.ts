@@ -17,12 +17,12 @@ import {
   type Level,
   type ReportPayload,
   type ReportUser,
-} from '@cinderblock/error-collector-core';
+} from '@cinderblock/telemetry-collector-core';
 import { exceptionChain, parseStack } from './stack.js';
 
 export interface InitOptions {
   /**
-   * Base URL of **your** error-collector deployment, e.g.
+   * Base URL of **your** telemetry-collector deployment, e.g.
    * `https://errors.example.com`.
    *
    * Deliberately required, with no default. This is self-hosted software: there is
@@ -69,10 +69,10 @@ export class Client {
 
   constructor(options: InitOptions) {
     if (!options.endpoint?.trim()) {
-      throw new Error('error-collector: `endpoint` is required — the URL of your own deployment');
+      throw new Error('telemetry-collector: `endpoint` is required — the URL of your own deployment');
     }
     if (!options.ingestKey?.trim()) {
-      throw new Error('error-collector: `ingestKey` is required');
+      throw new Error('telemetry-collector: `ingestKey` is required');
     }
     this.options = options;
     this.user = options.user;
@@ -142,7 +142,7 @@ export class Client {
     if (this.options.environment) payload.environment = this.options.environment;
     if (this.breadcrumbs.length > 0) payload.breadcrumbs = [...this.breadcrumbs];
     if (this.user) payload.user = this.user;
-    payload.sdk = { name: 'error-collector-js', version: SDK_VERSION };
+    payload.sdk = { name: 'telemetry-collector-js', version: SDK_VERSION };
     return payload;
   }
 
@@ -172,7 +172,7 @@ export class Client {
 
       await this.transport(payload, screenshot);
     } catch (error) {
-      if (this.options.debug) console.error('[error-collector] failed to report:', error);
+      if (this.options.debug) console.error('[telemetry-collector] failed to report:', error);
     } finally {
       this.sending = false;
     }

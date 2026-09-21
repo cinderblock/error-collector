@@ -1,27 +1,27 @@
 ---
-name: error-collector
-description: Wire a project up to the error-collector backend, or pull its collected errors and user feedback for triage. Use when asked to "add error reporting", "collect crashes/feedback from this app", "set up error-collector", "what errors are users hitting", "check reported bugs", "triage production errors", or when investigating a bug that users have reported from a deployed app.
+name: telemetry-collector
+description: Wire a project up to the telemetry-collector backend, or pull its collected errors and user feedback for triage. Use when asked to "add error reporting", "collect crashes/feedback from this app", "set up telemetry-collector", "what errors are users hitting", "check reported bugs", "triage production errors", or when investigating a bug that users have reported from a deployed app.
 ---
 
-# error-collector
+# telemetry-collector
 
 A self-hosted crash and feedback collector running on Cloudflare. This skill covers
 the two things an agent does with it: **wiring a project up to it**, and **reading the
 data to fix things**.
 
 **Where is it?** There is no canonical server and no hostname baked into anything —
-read `ERROR_COLLECTOR_URL` from the environment. If it is not set, ask the user for
+read `TELEMETRY_COLLECTOR_URL` from the environment. If it is not set, ask the user for
 their deployment's URL rather than guessing one.
 
 ## Credentials — read this before touching anything
 
 Three kinds, and mixing them up is the one genuinely damaging mistake available here.
 
-|            | Looks like                  | Where it belongs                       | Never                                          |
-| ---------- | --------------------------- | -------------------------------------- | ---------------------------------------------- |
-| App secret | `ecs_…`                     | CI secrets, password store             | **never** in a client bundle, a repo, or a log |
-| Ingest key | `ek1.<app>.<channel>.<mac>` | committed config, client bundles       | — it is public by design                       |
-| Read token | `ert_…`                     | your own env (`ERROR_COLLECTOR_TOKEN`) | not in the app                                 |
+|            | Looks like                  | Where it belongs                           | Never                                          |
+| ---------- | --------------------------- | ------------------------------------------ | ---------------------------------------------- |
+| App secret | `ecs_…`                     | CI secrets, password store                 | **never** in a client bundle, a repo, or a log |
+| Ingest key | `ek1.<app>.<channel>.<mac>` | committed config, client bundles           | — it is public by design                       |
+| Read token | `ert_…`                     | your own env (`TELEMETRY_COLLECTOR_TOKEN`) | not in the app                                 |
 
 The ingest key being public is intentional, not an oversight. Do not "fix" it by moving
 it into a secret, proxying it, or obfuscating it — the endpoint is meant to be
@@ -38,10 +38,10 @@ have, so a leak means re-keying every deployed copy.
 Start here when asked about reported bugs, production errors, or user feedback.
 
 ```sh
-export ERROR_COLLECTOR_URL=https://…     # the user's deployment
-export ERROR_COLLECTOR_TOKEN=ert_…       # ask the user if either isn't already set
+export TELEMETRY_COLLECTOR_URL=https://…     # the user's deployment
+export TELEMETRY_COLLECTOR_TOKEN=ert_…       # ask the user if either isn't already set
 
-error-collector digest --app <app-id> --since 7d
+telemetry-collector digest --app <app-id> --since 7d
 ```
 
 `digest` is one call that returns the open issues, each already carrying a
@@ -51,11 +51,11 @@ walking `issues` and then fetching each one** — that turns one request into do
 Useful narrowing:
 
 ```sh
-error-collector digest --app x --since 24h --release 1.4.3   # did the new build break?
-error-collector issues --app x --kind feedback               # what users wrote, in words
-error-collector issues --app x --q "relay"                   # search titles and culprits
-error-collector issue <issue-id>                             # full samples for one issue
-error-collector digest --app x --json                        # raw, for programmatic use
+telemetry-collector digest --app x --since 24h --release 1.4.3   # did the new build break?
+telemetry-collector issues --app x --kind feedback               # what users wrote, in words
+telemetry-collector issues --app x --q "relay"                   # search titles and culprits
+telemetry-collector issue <issue-id>                             # full samples for one issue
+telemetry-collector digest --app x --json                        # raw, for programmatic use
 ```
 
 ### Reading the output
@@ -90,7 +90,7 @@ error-collector digest --app x --json                        # raw, for programm
 
 App registration is an admin action behind a passkey. Ask the user to register the app
 and give you back the **app secret** (`ecs_…`), then put it straight into the repo's CI
-secrets — as `ERROR_COLLECTOR_APP_SECRET` — and nowhere else.
+secrets — as `TELEMETRY_COLLECTOR_APP_SECRET` — and nowhere else.
 
 Pick an app id that is lowercase, hyphenated, and **contains no dots** (dots are the
 ingest key's field separator). `gate-manager`, not `gate.manager`.
@@ -102,7 +102,7 @@ registration of the version — the backend verifies the key and creates the cha
 first report.
 
 ```sh
-error-collector key --app gate-manager --channel "$VERSION"
+telemetry-collector key --app gate-manager --channel "$VERSION"
 # ek1.gate-manager.1.4.2.cc5g1c36bb3je8d7vmatrb59fm
 ```
 
@@ -113,10 +113,10 @@ In GitHub Actions:
 
 ```yaml
 - name: Derive ingest key
-  run: echo "VITE_ERROR_COLLECTOR_KEY=$(bunx @cinderblock/error-collector-cli key \
+  run: echo "VITE_TELEMETRY_COLLECTOR_KEY=$(bunx @cinderblock/telemetry-collector-cli key \
     --app gate-manager --channel "${{ github.sha }}")" >> "$GITHUB_ENV"
   env:
-    ERROR_COLLECTOR_APP_SECRET: ${{ secrets.ERROR_COLLECTOR_APP_SECRET }}
+    TELEMETRY_COLLECTOR_APP_SECRET: ${{ secrets.TELEMETRY_COLLECTOR_APP_SECRET }}
 ```
 
 Use whatever env prefix the project's bundler actually inlines (`VITE_`, `NEXT_PUBLIC_`,
@@ -125,18 +125,18 @@ Use whatever env prefix the project's bundler actually inlines (`VITE_`, `NEXT_P
 ### 3. Install and initialise
 
 ```sh
-bun add @cinderblock/error-collector
+bun add @cinderblock/telemetry-collector
 ```
 
 Browser:
 
 ```ts
-import { init } from '@cinderblock/error-collector';
-import { installBrowserHandlers } from '@cinderblock/error-collector/browser';
+import { init } from '@cinderblock/telemetry-collector';
+import { installBrowserHandlers } from '@cinderblock/telemetry-collector/browser';
 
 const client = init({
-  endpoint: import.meta.env.VITE_ERROR_COLLECTOR_URL, // required — no default exists
-  ingestKey: import.meta.env.VITE_ERROR_COLLECTOR_KEY,
+  endpoint: import.meta.env.VITE_TELEMETRY_COLLECTOR_URL, // required — no default exists
+  ingestKey: import.meta.env.VITE_TELEMETRY_COLLECTOR_KEY,
   release: import.meta.env.VITE_GIT_SHA,
   environment: import.meta.env.MODE,
 });
@@ -147,9 +147,9 @@ Node / server-side — here, and **only** here, add attestation:
 
 ```ts
 const client = init({
-  endpoint: process.env.ERROR_COLLECTOR_URL!,
-  ingestKey: process.env.ERROR_COLLECTOR_INGEST_KEY!,
-  appSecret: process.env.ERROR_COLLECTOR_APP_SECRET, // signs reports; server-side only
+  endpoint: process.env.TELEMETRY_COLLECTOR_URL!,
+  ingestKey: process.env.TELEMETRY_COLLECTOR_INGEST_KEY!,
+  appSecret: process.env.TELEMETRY_COLLECTOR_APP_SECRET, // signs reports; server-side only
   release: process.env.GIT_SHA,
 });
 installNodeHandlers(client);
@@ -161,7 +161,7 @@ startup are not captured.
 ### 4. Feedback, if the app has users
 
 ```ts
-import { captureScreenshot } from '@cinderblock/error-collector/browser';
+import { captureScreenshot } from '@cinderblock/telemetry-collector/browser';
 
 await client.sendFeedback({
   message: text,
@@ -178,14 +178,14 @@ and shows a picker, so only use it from a button the user pressed.
 There is no SDK to install. One HTTP call is the whole protocol:
 
 ```sh
-curl -X POST "$ERROR_COLLECTOR_URL/i/$INGEST_KEY" \
+curl -X POST "$TELEMETRY_COLLECTOR_URL/i/$INGEST_KEY" \
   -H 'content-type: application/json' \
   -d '{"level":"error","message":"…","release":"1.4.2",
        "exception":{"type":"IOError","value":"…"}}'
 ```
 
-Same for CI reporting its own failures: `error-collector report --message "…"`, which
-signs automatically when `ERROR_COLLECTOR_APP_SECRET` is present.
+Same for CI reporting its own failures: `telemetry-collector report --message "…"`, which
+signs automatically when `TELEMETRY_COLLECTOR_APP_SECRET` is present.
 
 ---
 
@@ -208,11 +208,11 @@ signs automatically when `ERROR_COLLECTOR_APP_SECRET` is present.
 
 ## Reference
 
-| Thing       | Value                                                                                                      |
-| ----------- | ---------------------------------------------------------------------------------------------------------- |
-| Backend     | `$ERROR_COLLECTOR_URL` — no default; ask the user if unset                                                 |
-| Ingest      | `POST /i/<ingestKey>` — JSON, or multipart with a `report` field plus `screenshot`                         |
-| Dataset     | `GET /api/digest`, `/api/issues`, `/api/issues/:id`, `/api/apps`, `/api/blob/:key`                         |
-| Auth (read) | `Authorization: Bearer ert_…`                                                                              |
-| CLI         | `bunx @cinderblock/error-collector-cli help`                                                               |
-| Env         | `ERROR_COLLECTOR_URL`, `ERROR_COLLECTOR_TOKEN`, `ERROR_COLLECTOR_APP_SECRET`, `ERROR_COLLECTOR_INGEST_KEY` |
+| Thing       | Value                                                                                                                      |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Backend     | `$TELEMETRY_COLLECTOR_URL` — no default; ask the user if unset                                                             |
+| Ingest      | `POST /i/<ingestKey>` — JSON, or multipart with a `report` field plus `screenshot`                                         |
+| Dataset     | `GET /api/digest`, `/api/issues`, `/api/issues/:id`, `/api/apps`, `/api/blob/:key`                                         |
+| Auth (read) | `Authorization: Bearer ert_…`                                                                                              |
+| CLI         | `bunx @cinderblock/telemetry-collector-cli help`                                                                           |
+| Env         | `TELEMETRY_COLLECTOR_URL`, `TELEMETRY_COLLECTOR_TOKEN`, `TELEMETRY_COLLECTOR_APP_SECRET`, `TELEMETRY_COLLECTOR_INGEST_KEY` |

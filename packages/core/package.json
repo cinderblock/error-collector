@@ -1,7 +1,7 @@
 {
-  "name": "@cinderblock/error-collector-core",
+  "name": "@cinderblock/telemetry-collector-core",
   "version": "0.0.0",
-  "description": "Shared key derivation, grouping and event normalization for error-collector.",
+  "description": "Shared key derivation, grouping and event normalization for telemetry-collector.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
@@ -24,7 +24,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/cinderblock/error-collector.git",
+    "url": "git+https://github.com/cinderblock/telemetry-collector.git",
     "directory": "packages/core"
   }
 }

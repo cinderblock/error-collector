@@ -34,7 +34,7 @@ jobs:
       # one is only discovered at deploy time otherwise — against the real database.
       - name: Migrations apply cleanly
         working-directory: worker
-        run: bunx wrangler d1 migrations apply ERRORS_DB --local
+        run: bunx wrangler d1 migrations apply TELEMETRY_DB --local
 
   # The SDK targets Node, so the matrix that matters is Node's — Bun passing proves
   # the code works, not that the declared engines range does.

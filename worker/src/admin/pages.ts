@@ -6,7 +6,7 @@
  * connection, needs no bundle, and cannot drift out of sync with the schema.
  */
 
-import { deriveIngestKey, generateReadToken, hashReadToken, isValidAppId } from '@cinderblock/error-collector-core';
+import { deriveIngestKey, generateReadToken, hashReadToken, isValidAppId } from '@cinderblock/telemetry-collector-core';
 import type { Env } from '../env.js';
 import { dayKey, nowSeconds } from '../env.js';
 import {
@@ -396,10 +396,10 @@ export async function appsPage(env: Env, revealed?: { id: string; secret: string
     ? `<div class="card">
         <h2 style="margin-top:0">Secret for ${escapeHtml(revealed.id)}</h2>
         <p class="sub">Shown once and never again. Put it in the project's CI secrets as
-        <span class="mono">ERROR_COLLECTOR_APP_SECRET</span>.</p>
+        <span class="mono">TELEMETRY_COLLECTOR_APP_SECRET</span>.</p>
         <div class="reveal mono">${escapeHtml(revealed.secret)}</div>
         <p class="muted">Derive a build's public ingest key from it, offline:</p>
-        <pre>error-collector key --app ${escapeHtml(revealed.id)} --channel "$VERSION"</pre>
+        <pre>telemetry-collector key --app ${escapeHtml(revealed.id)} --channel "$VERSION"</pre>
         <p class="muted">The ingest key that produces is <em>public</em> — it is meant to ship inside
         the app. This secret is not.</p>
       </div>`
@@ -585,7 +585,7 @@ export async function settingsPage(env: Env, revealedToken?: string): Promise<Re
           ${
             revealedToken
               ? `<p class="sub">Shown once. Put it in the agent's environment as
-                 <span class="mono">ERROR_COLLECTOR_TOKEN</span>.</p>
+                 <span class="mono">TELEMETRY_COLLECTOR_TOKEN</span>.</p>
                  <div class="reveal mono">${escapeHtml(revealedToken)}</div>`
               : ''
           }
