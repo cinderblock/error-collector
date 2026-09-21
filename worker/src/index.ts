@@ -1,5 +1,6 @@
 import { runScheduled } from './cron.js';
 import type { Env } from './env.js';
+import { handleReadApi } from './api/read.js';
 import { handleIngest, preflight } from './ingest/native.js';
 
 function notFound(): Response {
@@ -15,6 +16,10 @@ async function route(request: Request, env: Env): Promise<Response> {
 
   if (path === '/healthz') {
     return new Response('ok\n', { headers: { 'content-type': 'text/plain; charset=utf-8' } });
+  }
+
+  if (path.startsWith('/api/')) {
+    return handleReadApi(request, env, path);
   }
 
   if (path.startsWith('/i/')) {
