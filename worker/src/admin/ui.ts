@@ -92,7 +92,13 @@ h2 { font-size: 1.05rem; margin: 26px 0 10px; }
 .bar > span { display: block; height: 100%; background: var(--ok); }
 .bar.warn > span { background: var(--warn); }
 .bar.bad > span { background: var(--bad); }
-.grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+/* Meters must not wrap their header: one wrapping value pushes that column's bar
+   out of line with its neighbours, which reads as a rendering bug. The label
+   ellipsises instead. */
+.meter-head { display: flex; flex-wrap: nowrap; gap: 10px; align-items: baseline; justify-content: space-between; }
+.meter-head .label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.meter-head .value { flex: 0 0 auto; white-space: nowrap; }
 pre {
   background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
   padding: 10px 12px; overflow-x: auto; font-size: 0.83rem; margin: 8px 0;
@@ -214,9 +220,9 @@ export function meter(label: string, used: number, limit: number, render: (value
   const ratio = limit > 0 ? Math.min(1, used / limit) : 0;
   const tone = ratio >= 0.95 ? 'bad' : ratio >= 0.6 ? 'warn' : '';
   return `<div>
-    <div class="row" style="justify-content: space-between">
-      <span>${escapeHtml(label)}</span>
-      <span class="muted mono">${escapeHtml(render(used))} / ${escapeHtml(render(limit))}</span>
+    <div class="meter-head">
+      <span class="label">${escapeHtml(label)}</span>
+      <span class="value muted mono">${escapeHtml(render(used))} / ${escapeHtml(render(limit))}</span>
     </div>
     <div class="bar ${tone}"><span style="width: ${(ratio * 100).toFixed(1)}%"></span></div>
     <div class="muted" style="font-size: 0.8rem; margin-top: 2px">${(ratio * 100).toFixed(ratio < 0.1 ? 1 : 0)}% of today's budget</div>

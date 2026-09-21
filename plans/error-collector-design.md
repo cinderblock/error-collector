@@ -4,8 +4,10 @@ A cheap, self-hosted place to collect errors, user feedback and screenshots from
 the apps I'm developing, running entirely on Cloudflare, at
 `error-collector.tomsawyerlabs.com`.
 
-Status: **design / architecture. Nothing built yet.** Open questions at the bottom
-are blocking the first line of code.
+Status: **built and verified locally; not yet deployed.** Every piece below exists
+and has been exercised against a local D1/R2/KV. The remaining work is the ops change
+that creates the Cloudflare resources and the custom domain — which needs its own
+authorization — plus the phase-2 Sentry dialect.
 
 ## Goal
 
@@ -348,6 +350,40 @@ All four opening questions were answered on 2026-09-21 and are recorded under
   per-change authorization.
 - Don't `wrangler deploy` by hand — CI only.
 
+## Findings / gotchas
+
+Things that were not obvious going in, recorded so they are not re-derived:
+
+- **D1's free tier hard-fails.** Since 2026-09-01 exceeding the daily row limits
+  returns errors rather than throttling. This is the single constraint that shaped the
+  whole write path.
+- **KV allows 1 000 writes/day on free.** It cannot be on any write path. It is a
+  read-through cache and nothing else.
+- **Queues is free since Feb 2026 but capped at 10 000 ops/day** — a _tighter_ ceiling
+  than the 100 k D1 writes it would be protecting. It buys nothing at this tier.
+- **Workers isolate-level memoisation matters more than expected.** The naive design
+  read governor state, the app record and the channel registry from KV on every
+  report, which would have exhausted the 100 k/day KV read allowance well before the
+  request allowance. `worker/src/cache.ts` removes most of those.
+- **Sentry orders exception chains oldest-first**, so the _last_ entry is the error
+  actually thrown and is what grouping should key on. Writing the test first got this
+  backwards; the accessor is now named `primaryException` rather than
+  `innermostException` so the next reader does not repeat it.
+- **Frames are innermost-last** in the stored model while every engine's
+  `Error.stack` is innermost-first. Getting the reversal wrong builds every
+  fingerprint from `main()` and silently merges unrelated crashes — silently, which is
+  why there is an explicit test for it.
+- **Pruning events must recompute `issues.sample_count`.** Without it, an issue whose
+  samples aged out sits permanently at its sampling cap and never keeps another
+  example. The bug would first appear one retention period after launch.
+- **`workspace:*` is a Bun protocol npm does not understand.** Publishing without
+  rewriting it ships a package that fails to install for everyone.
+- **SQLite upsert conflict targets**: two unique constraints that always fail together
+  make `ON CONFLICT` behaviour depend on which one SQLite checks first. The issue id
+  is derived from the fingerprint so the primary key is the only conflict target.
+- The `title=` prohibition is enforced by a check across every rendered page, and the
+  meter component has a test asserting it emits none.
+
 ## Progress log
 
 - [x] 2026-09-21 — Surveyed ops repo: existing worker patterns, CI deploy flow,
@@ -357,11 +393,25 @@ All four opening questions were answered on 2026-09-21 and are recorded under
       constraints that shape the design.
 - [x] 2026-09-21 — Analysed the proposed hash-key scheme; refined to HMAC-derived,
       self-describing, self-provisioning ingest keys with independent read tokens.
-- [x] 2026-09-21 — Design doc written.
-- [ ] Answer the four open questions.
-- [ ] Scaffold repo, wrangler config, D1 migrations.
-- [ ] Native ingest dialect + coalescing + AE writes + R2 blobs.
-- [ ] Passkey admin UI (port from `ask`).
-- [ ] Read-token dataset API + agent skill.
-- [ ] npm SDK + feedback widget, published from CI.
-- [ ] Sentry envelope dialect.
+- [x] 2026-09-21 — Design doc written; four opening questions answered.
+- [x] 2026-09-21 — Repo scaffolded (bun workspaces, `master`), core package with key
+      derivation, grouping and normalization. 63 tests.
+- [x] 2026-09-21 — D1 schema, budget governor, native ingest dialect. Verified against
+      local D1/R2: coalescing, forged-channel rejection, attestation, screenshots.
+- [x] 2026-09-21 — Scoped read tokens and the agent dataset API, including `/api/digest`.
+      Scope isolation verified.
+- [x] 2026-09-21 — SDK and CLI packages. Verified end to end against the running worker,
+      including a key derived offline for an unregistered version being accepted.
+- [x] 2026-09-21 — README, agent skill, CI (check / deploy / publish).
+- [x] 2026-09-21 — Passkey auth and the admin UI. All five governor levels probed
+      against real usage ratios. 133 tests, clean typecheck.
+- [ ] **Next:** ops change — create the D1 database, KV namespace, R2 bucket and AE
+      dataset, and declare `error-collector.tomsawyerlabs.com`. Needs explicit
+      per-change authorization.
+- [ ] Set repo secrets/variables: `CLOUDFLARE_API_TOKEN`, `D1_DATABASE_ID`,
+      `KV_NAMESPACE_ID`, `CLOUDFLARE_ACCOUNT_ID`; worker secrets `SECRET_KEK`,
+      `AUTH_SECRET`, `BOOTSTRAP_TOKEN`.
+- [ ] First deploy, then enrol the first passkey with the bootstrap token.
+- [ ] Claim the npm scope and publish `0.0.0` placeholders, then release from CI.
+- [ ] Phase 2: Sentry envelope dialect.
+- [ ] Wire the first real project (candidate: Gate Manager) end to end.
