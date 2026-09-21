@@ -71,8 +71,8 @@ signing setup should be loud.
 ### Browser
 
 ```ts
-import { init } from '@tomsawyerlabs/error-collector';
-import { installBrowserHandlers, captureScreenshot } from '@tomsawyerlabs/error-collector/browser';
+import { init } from '@cinderblock/error-collector';
+import { installBrowserHandlers, captureScreenshot } from '@cinderblock/error-collector/browser';
 
 const client = init({
   ingestKey: 'ek1.gate-manager.1.4.2.cc5g1c36bb3je8d7vmatrb59fm', // safe to commit
@@ -97,8 +97,8 @@ never use one. `captureScreenshot` takes a `renderer`, falls back to a global
 ### Node / server-side
 
 ```ts
-import { init } from '@tomsawyerlabs/error-collector';
-import { installNodeHandlers } from '@tomsawyerlabs/error-collector/node';
+import { init } from '@cinderblock/error-collector';
+import { installNodeHandlers } from '@cinderblock/error-collector/node';
 
 const client = init({
   ingestKey: process.env.ERROR_COLLECTOR_INGEST_KEY!,
@@ -219,8 +219,8 @@ source of truth for Cloudflare configuration.
 
 ```
 packages/core/   key derivation, grouping, event normalization  (shared)
-packages/sdk/    @tomsawyerlabs/error-collector — the reporter
-packages/cli/    @tomsawyerlabs/error-collector-cli
+packages/sdk/    @cinderblock/error-collector — the reporter
+packages/cli/    @cinderblock/error-collector-cli
 worker/          the Cloudflare Worker: ingest, API, admin, cron
 skills/          agent instructions for wiring this into a project
 plans/           design notes

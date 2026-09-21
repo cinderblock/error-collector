@@ -6,7 +6,7 @@
  * connection, needs no bundle, and cannot drift out of sync with the schema.
  */
 
-import { deriveIngestKey, generateReadToken, hashReadToken, isValidAppId } from '@tomsawyerlabs/error-collector-core';
+import { deriveIngestKey, generateReadToken, hashReadToken, isValidAppId } from '@cinderblock/error-collector-core';
 import type { Env } from '../env.js';
 import { dayKey, nowSeconds } from '../env.js';
 import {

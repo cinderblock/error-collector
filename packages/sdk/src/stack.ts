@@ -15,7 +15,7 @@
  *    framework function from merging.
  */
 
-import type { StackFrame } from '@tomsawyerlabs/error-collector-core';
+import type { StackFrame } from '@cinderblock/error-collector-core';
 
 /** V8/Chrome/Node: `    at fn (file:line:col)`, `    at file:line:col` */
 const V8_FRAME = /^\s*at (?:(.+?)\s+\()?(?:(.+?):(\d+):(\d+)|([^)]+))\)?\s*$/;

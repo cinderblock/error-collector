@@ -19,7 +19,7 @@ import {
   verifyIngestKey,
   verifyReportSignature,
   type ReportPayload,
-} from '@tomsawyerlabs/error-collector-core';
+} from '@cinderblock/error-collector-core';
 import type { Env } from '../env.js';
 import { dayKey, nowSeconds } from '../env.js';
 import { decideStorage, levelFor, loadGovernorConfig } from '../governor.js';

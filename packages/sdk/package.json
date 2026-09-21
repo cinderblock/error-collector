@@ -1,5 +1,5 @@
 {
-  "name": "@tomsawyerlabs/error-collector",
+  "name": "@cinderblock/error-collector",
   "version": "0.0.0",
   "description": "Report errors, messages and user feedback (with screenshots) to an error-collector backend.",
   "type": "module",
@@ -31,7 +31,7 @@
     "prepublishOnly": "bun run ../../scripts/guard-publish.ts && bun run build"
   },
   "dependencies": {
-    "@tomsawyerlabs/error-collector-core": "workspace:*"
+    "@cinderblock/error-collector-core": "workspace:*"
   },
   "repository": {
     "type": "git",

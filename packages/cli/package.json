@@ -1,5 +1,5 @@
 {
-  "name": "@tomsawyerlabs/error-collector-cli",
+  "name": "@cinderblock/error-collector-cli",
   "version": "0.0.0",
   "description": "Derive ingest keys at build time and pull error datasets for triage.",
   "type": "module",
@@ -25,7 +25,7 @@
     "prepublishOnly": "bun run ../../scripts/guard-publish.ts && bun run build"
   },
   "dependencies": {
-    "@tomsawyerlabs/error-collector-core": "workspace:*"
+    "@cinderblock/error-collector-core": "workspace:*"
   },
   "repository": {
     "type": "git",

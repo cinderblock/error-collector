@@ -310,7 +310,7 @@ comfortable to live with. Cheap to implement, large practical payoff.
 
 ## Deliverables beyond the backend
 
-1. **`@tomsawyerlabs/error-collector` (npm, published by CI with provenance)** — browser
+1. **`@cinderblock/error-collector` (npm, published by CI with provenance)** — browser
    - Node reporter. `init({ ingestKey })`, global `onerror`/`unhandledrejection` hooks,
      breadcrumbs, `reportFeedback({ text, screenshot })`, offline queue.
 2. **Feedback widget** — a drop-in that captures a screenshot client-side
@@ -327,7 +327,7 @@ comfortable to live with. Cheap to implement, large practical payoff.
 All four opening questions were answered on 2026-09-21 and are recorded under
 "Decisions already locked". Remaining, to raise when the work reaches them:
 
-1. **npm scope for the published SDKs** — `@tomsawyerlabs/*` or something else? Needs
+1. **npm scope for the published SDKs** — `@cinderblock/*` or something else? Needs
    the org to exist on npm before the first publish workflow runs. (Placeholder-`0.0.0`
    name claim is the one sanctioned local publish; everything real ships from CI.)
 2. **ops change to declare the domain** — when the worker is ready to deploy, the

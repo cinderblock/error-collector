@@ -20,7 +20,7 @@ import {
   isValidChannel,
   signReport,
   type ReportPayload,
-} from '@tomsawyerlabs/error-collector-core';
+} from '@cinderblock/error-collector-core';
 
 const DEFAULT_URL = 'https://error-collector.tomsawyerlabs.com';
 

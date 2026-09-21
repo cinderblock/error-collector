@@ -12,7 +12,7 @@
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { deriveIngestKey, generateAppSecret } from '@tomsawyerlabs/error-collector-core';
+import { deriveIngestKey, generateAppSecret } from '@cinderblock/error-collector-core';
 import { sealSecret } from '../src/storage/secrets.js';
 
 const [appId, ...channels] = process.argv.slice(2);

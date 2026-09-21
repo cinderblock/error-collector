@@ -8,7 +8,7 @@
  * of how little of it reaches D1.
  */
 
-import { culpritFor, titleFor, type StoredEvent } from '@tomsawyerlabs/error-collector-core';
+import { culpritFor, titleFor, type StoredEvent } from '@cinderblock/error-collector-core';
 import type { Env } from '../env.js';
 import type { StorageDecision } from '../governor.js';
 

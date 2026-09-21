@@ -1,5 +1,5 @@
 {
-  "name": "@tomsawyerlabs/error-collector-core",
+  "name": "@cinderblock/error-collector-core",
   "version": "0.0.0",
   "description": "Shared key derivation, grouping and event normalization for error-collector.",
   "type": "module",

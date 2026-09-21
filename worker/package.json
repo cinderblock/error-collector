@@ -12,6 +12,6 @@
   },
   "dependencies": {
     "@simplewebauthn/server": "^14.0.2",
-    "@tomsawyerlabs/error-collector-core": "workspace:*"
+    "@cinderblock/error-collector-core": "workspace:*"
   }
 }

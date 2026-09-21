@@ -8,7 +8,7 @@
 import { rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { generateReadToken, hashReadToken } from '@tomsawyerlabs/error-collector-core';
+import { generateReadToken, hashReadToken } from '@cinderblock/error-collector-core';
 
 const args = process.argv.slice(2);
 const write = args.includes('--write');

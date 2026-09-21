@@ -14,24 +14,24 @@
       },
     },
     "packages/cli": {
-      "name": "@tomsawyerlabs/error-collector-cli",
+      "name": "@cinderblock/error-collector-cli",
       "version": "0.0.0",
       "bin": {
         "error-collector": "./dist/index.js",
       },
       "dependencies": {
-        "@tomsawyerlabs/error-collector-core": "workspace:*",
+        "@cinderblock/error-collector-core": "workspace:*",
       },
     },
     "packages/core": {
-      "name": "@tomsawyerlabs/error-collector-core",
+      "name": "@cinderblock/error-collector-core",
       "version": "0.0.0",
     },
     "packages/sdk": {
-      "name": "@tomsawyerlabs/error-collector",
+      "name": "@cinderblock/error-collector",
       "version": "0.0.0",
       "dependencies": {
-        "@tomsawyerlabs/error-collector-core": "workspace:*",
+        "@cinderblock/error-collector-core": "workspace:*",
       },
     },
     "worker": {
@@ -39,7 +39,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@simplewebauthn/server": "^14.0.2",
-        "@tomsawyerlabs/error-collector-core": "workspace:*",
+        "@cinderblock/error-collector-core": "workspace:*",
       },
     },
   },
@@ -222,11 +222,11 @@
 
     "@speed-highlight/core": ["@speed-highlight/core@1.2.24", "", {}, "sha512-qeW2e1l78afw8VhRPfPQ1Gjj+KU5XFQ/OFV5ti6eTa9bruO7mJyZtA4vw0ofqmA3tKCkROE9xLk3VZoeRc98nw=="],
 
-    "@tomsawyerlabs/error-collector": ["@tomsawyerlabs/error-collector@workspace:packages/sdk"],
+    "@cinderblock/error-collector": ["@cinderblock/error-collector@workspace:packages/sdk"],
 
-    "@tomsawyerlabs/error-collector-cli": ["@tomsawyerlabs/error-collector-cli@workspace:packages/cli"],
+    "@cinderblock/error-collector-cli": ["@cinderblock/error-collector-cli@workspace:packages/cli"],
 
-    "@tomsawyerlabs/error-collector-core": ["@tomsawyerlabs/error-collector-core@workspace:packages/core"],
+    "@cinderblock/error-collector-core": ["@cinderblock/error-collector-core@workspace:packages/core"],
 
     "@types/bun": ["@types/bun@1.4.2", "", { "dependencies": { "bun-types": "1.4.2" } }, "sha512-GimotNn7+ZV0uVArItBbriZsR1oNf0+WTzPkdcFrzShI7k2norL0uzEaJT8T33dWr7O/c9ZDuAFQrctKCi72oQ=="],
 

@@ -17,7 +17,7 @@ import {
   type Level,
   type ReportPayload,
   type ReportUser,
-} from '@tomsawyerlabs/error-collector-core';
+} from '@cinderblock/error-collector-core';
 import { exceptionChain, parseStack } from './stack.js';
 
 export const DEFAULT_ENDPOINT = 'https://error-collector.tomsawyerlabs.com';

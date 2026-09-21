@@ -108,7 +108,7 @@ In GitHub Actions:
 
 ```yaml
 - name: Derive ingest key
-  run: echo "VITE_ERROR_COLLECTOR_KEY=$(bunx @tomsawyerlabs/error-collector-cli key \
+  run: echo "VITE_ERROR_COLLECTOR_KEY=$(bunx @cinderblock/error-collector-cli key \
     --app gate-manager --channel "${{ github.sha }}")" >> "$GITHUB_ENV"
   env:
     ERROR_COLLECTOR_APP_SECRET: ${{ secrets.ERROR_COLLECTOR_APP_SECRET }}
@@ -120,14 +120,14 @@ Use whatever env prefix the project's bundler actually inlines (`VITE_`, `NEXT_P
 ### 3. Install and initialise
 
 ```sh
-bun add @tomsawyerlabs/error-collector
+bun add @cinderblock/error-collector
 ```
 
 Browser:
 
 ```ts
-import { init } from '@tomsawyerlabs/error-collector';
-import { installBrowserHandlers } from '@tomsawyerlabs/error-collector/browser';
+import { init } from '@cinderblock/error-collector';
+import { installBrowserHandlers } from '@cinderblock/error-collector/browser';
 
 const client = init({
   ingestKey: import.meta.env.VITE_ERROR_COLLECTOR_KEY,
@@ -154,7 +154,7 @@ startup are not captured.
 ### 4. Feedback, if the app has users
 
 ```ts
-import { captureScreenshot } from '@tomsawyerlabs/error-collector/browser';
+import { captureScreenshot } from '@cinderblock/error-collector/browser';
 
 await client.sendFeedback({
   message: text,
@@ -205,5 +205,5 @@ signs automatically when `ERROR_COLLECTOR_APP_SECRET` is present.
 | Ingest      | `POST /i/<ingestKey>` — JSON, or multipart with a `report` field plus `screenshot`                         |
 | Dataset     | `GET /api/digest`, `/api/issues`, `/api/issues/:id`, `/api/apps`, `/api/blob/:key`                         |
 | Auth (read) | `Authorization: Bearer ert_…`                                                                              |
-| CLI         | `bunx @tomsawyerlabs/error-collector-cli help`                                                             |
+| CLI         | `bunx @cinderblock/error-collector-cli help`                                                               |
 | Env         | `ERROR_COLLECTOR_URL`, `ERROR_COLLECTOR_TOKEN`, `ERROR_COLLECTOR_APP_SECRET`, `ERROR_COLLECTOR_INGEST_KEY` |
