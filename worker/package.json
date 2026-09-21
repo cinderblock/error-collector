@@ -1,0 +1,16 @@
+{
+  "name": "error-collector-worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "typecheck": "tsc --noEmit",
+    "migrate:local": "wrangler d1 migrations apply ERRORS_DB --local",
+    "migrate:remote": "wrangler d1 migrations apply ERRORS_DB --remote",
+    "deploy": "echo 'Deploy via CI only — push to master or dispatch .github/workflows/deploy.yml' && exit 1"
+  },
+  "dependencies": {
+    "@tomsawyerlabs/error-collector-core": "workspace:*"
+  }
+}
