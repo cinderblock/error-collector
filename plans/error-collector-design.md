@@ -316,6 +316,74 @@ comfortable to live with. Cheap to implement, large practical payoff.
 - Analytics Engine dataset `error_events` — indexed by app, blobs: channel, fingerprint,
   level, kind; doubles: 1.
 
+## Usage tracking (proposed, not built)
+
+Asked 2026-09-21: can this collect product usage too? **Yes — and Analytics Engine,
+already wired in, is precisely a usage-analytics store.** But one thing is
+non-negotiable:
+
+> **Usage events must never touch D1.**
+
+The error path costs ~2 D1 row writes per report, which is right for errors (rare,
+and you want the detail) and catastrophic for usage. A pageview is not an "issue";
+you do not want a row per pageview; and 100 k D1 writes/day would be gone in an
+afternoon. Worse, usage would pollute the very `usage_daily` counters the governor
+grades against, so tracking usage would throttle error collection.
+
+So: a separate path writing **one AE data point and nothing else**.
+
+```
+POST /u/<ingestKey>     { event: "gate.opened", value?: 1, dims?: {...} }
+  └─ rate limit → env.AE.writeDataPoint(...)      # zero D1 writes
+```
+
+It reuses the same app, ingest key, channel, release and attestation, so a project
+gets three kinds of signal from one integration.
+
+### What it costs
+
+|              | Free                                                | Paid                  |
+| ------------ | --------------------------------------------------- | --------------------- |
+| Data points  | 100 k/day (and AE is _currently not billed at all_) | 10 M/mo, then $0.25/M |
+| Read queries | 10 k/day                                            | 1 M/mo, then $1.00/M  |
+
+Cheaper per event than the error path by a wide margin.
+
+### What it needs that does not exist yet
+
+1. The `/u/` endpoint plus a `track()` in the SDK — small.
+2. **A read path through the AE SQL API.** This is the real work: AE is written via a
+   binding but _queried_ over HTTPS with an account token (`CF_ANALYTICS_TOKEN`,
+   already anticipated in `wrangler.toml`). New: query builder, `/api/usage`, a
+   usage tab in the admin UI.
+3. **A daily rollup into D1.** AE retention is 90 days with no knob. One tiny row per
+   (app, event, day) preserves history indefinitely for a rounding error of storage,
+   and must exist _before_ the first data ages out to be worth anything.
+
+### Caveats worth knowing before saying yes
+
+- **AE samples under load.** Above roughly 100 data points/sec per index value it
+  samples, and every row carries `_sample_interval` that queries must multiply by.
+  Counts come out statistically accurate, not exact. Fine for "how much is this
+  used"; wrong for anything you would bill on.
+- **Aggregate-only.** You cannot retrieve an individual usage event. If exact
+  per-event records are ever needed that is Pipelines → R2 Iceberg, the documented
+  scale-out path.
+- **Uniques are awkward.** AE has no HyperLogLog, and `count(distinct)` over a
+  sampled dataset is unreliable. Combined with the existing no-IP stance, the honest
+  answer is to report event counts and not pretend to count people.
+- **A world-open usage endpoint can have its counts inflated** by anyone who reads
+  the key out of your bundle. For errors that is tolerable — you triage them and
+  notice. Inflated usage numbers are _silently_ wrong. Attestation covers server-side
+  events; nothing covers browser events. Acceptable for "roughly how much do my own
+  apps get used", not for a decision with money attached.
+
+### Open question
+
+If it does usage as well as errors, "error-collector" undersells it — and the repo,
+the package names and the hostname are all cheap to change now and annoying later.
+Worth settling before this is built.
+
 ## Deliverables beyond the backend
 
 1. **`@cinderblock/error-collector` (npm, published by CI with provenance)** — browser
