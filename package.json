@@ -14,8 +14,8 @@
     "wrangler": "^4.61.0"
   },
   "scripts": {
-    "build": "bun run --filter '@tomsawyerlabs/error-collector-core' build",
-    "typecheck": "bun run build && tsc -p packages/core && tsc -p worker",
+    "build": "tsc -p packages/core/tsconfig.build.json && tsc -p packages/sdk/tsconfig.build.json && tsc -p packages/cli/tsconfig.build.json",
+    "typecheck": "bun run build && tsc -p packages/core && tsc -p packages/sdk && tsc -p packages/cli && tsc -p worker",
     "test": "bun test",
     "check": "bun run typecheck && bun run test && bun run format:check",
     "format": "prettier --write .",

@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Test
+        run: bun test
+
+      - name: Format
+        run: bun run format:check
+
+      # The migrations are the one thing a typecheck cannot vouch for, and a broken
+      # one is only discovered at deploy time otherwise — against the real database.
+      - name: Migrations apply cleanly
+        working-directory: worker
+        run: bunx wrangler d1 migrations apply ERRORS_DB --local
+
+  # The SDK targets Node, so the matrix that matters is Node's — Bun passing proves
+  # the code works, not that the declared engines range does.
+  node-matrix:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['18', '20', '22', '24']
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Build packages
+        run: bun run build
+
+      - name: Import the built ESM packages under Node ${{ matrix.node }}
+        run: |
+          node --input-type=module -e "
+            import { init, parseStack } from './packages/sdk/dist/index.js';
+            import { deriveIngestKey, verifyIngestKey, generateAppSecret } from './packages/core/dist/index.js';
+
+            // Joined rather than escaped: a backslash-n here has to survive YAML,
+            // the shell and the JS parser, and does not.
+            const frames = parseStack(['Error: x', '    at f (/a.js:1:2)'].join(String.fromCharCode(10)));
+            if (frames.length !== 1) throw new Error('stack parsing broken');
+
+            const secret = generateAppSecret();
+            const key = await deriveIngestKey(secret, 'a', '1.2.3');
+            if (!(await verifyIngestKey(secret, key))) throw new Error('key round-trip broken');
+
+            const client = init({ ingestKey: key });
+            if (!client.url.endsWith('/i/' + key)) throw new Error('client url wrong: ' + client.url);
+
+            console.log('ok on ' + process.version);
+          "

@@ -1,0 +1,81 @@
+name: Deploy
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - worker/**
+      - packages/core/**
+      - .github/workflows/deploy.yml
+  workflow_dispatch:
+    inputs:
+      skip_migrations:
+        description: Skip applying D1 migrations
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      # Deploying something that does not typecheck or pass its tests is how a
+      # crash collector ends up being the thing that is down.
+      - name: Check
+        run: bun run typecheck && bun test
+
+      # wrangler.toml carries `local` placeholders so `wrangler dev` works with no
+      # setup. The real resource ids are repo *variables*, not secrets — a D1
+      # database id or KV namespace id identifies a resource, it does not grant
+      # access to one — and are substituted here so the committed file never has to
+      # carry environment-specific values.
+      - name: Point bindings at the production resources
+        working-directory: worker
+        run: |
+          for pair in "D1_DATABASE_ID:${{ vars.D1_DATABASE_ID }}" "KV_NAMESPACE_ID:${{ vars.KV_NAMESPACE_ID }}"; do
+            name="${pair%%:*}"; value="${pair#*:}"
+            if [ -z "$value" ]; then
+              echo "::error::repository variable $name is not set — create the resource and set it before deploying"
+              exit 1
+            fi
+          done
+          sed -i "s|^database_id = \"local\"|database_id = \"${{ vars.D1_DATABASE_ID }}\"|" wrangler.toml
+          sed -i "s|^id = \"local\"|id = \"${{ vars.KV_NAMESPACE_ID }}\"|" wrangler.toml
+          grep -E '^(database_id|id) =' wrangler.toml
+
+      - name: Apply D1 migrations
+        if: inputs.skip_migrations != true
+        working-directory: worker
+        run: bunx wrangler d1 migrations apply ERRORS_DB --remote --yes
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Deploy
+        working-directory: worker
+        run: bunx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Smoke test
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if curl -fsS "https://error-collector.tomsawyerlabs.com/healthz" | grep -q ok; then
+              echo "healthy"; exit 0
+            fi
+            echo "not healthy yet (attempt $attempt)"; sleep 5
+          done
+          echo "::error::deployment did not become healthy"
+          exit 1

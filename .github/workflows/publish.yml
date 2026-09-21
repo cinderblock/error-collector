@@ -1,0 +1,89 @@
+name: Publish
+
+# Releases ship from here and nowhere else. `scripts/guard-publish.ts` runs as
+# prepublishOnly in every package and hard-fails outside CI, so a local `npm publish`
+# is impossible rather than merely discouraged — the single exception being a one-time
+# 0.0.0 to claim a package name, which a registry can only ever accept once.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Pack and inspect without publishing
+        type: boolean
+        default: true
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  # Required for provenance attestation — the thing that makes a published artifact
+  # traceable to this workflow and this commit.
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+
+      # Bun installs; npm publishes. Provenance attestation is an npm feature.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Check
+        run: bun run typecheck && bun test && bun run format:check
+
+      - name: Build
+        run: bun run build
+
+      # `workspace:*` is a Bun protocol npm does not understand. Publishing without
+      # this rewrite ships an SDK that declares a dependency on the literal string
+      # "workspace:*" and fails to install for everyone.
+      - name: Resolve workspace dependency ranges
+        run: |
+          bun run scripts/resolve-workspace-deps.ts
+          bun run scripts/resolve-workspace-deps.ts --check
+
+      # Publishing a version the tag does not name is how a release goes out
+      # pointing at the wrong source.
+      - name: Tag matches package versions
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          for pkg in packages/core packages/sdk packages/cli; do
+            version="$(node -p "require('./$pkg/package.json').version")"
+            if [ "$version" != "$tag" ]; then
+              echo "::error::$pkg is at $version but the tag says $tag"
+              exit 1
+            fi
+          done
+          echo "all packages at $tag"
+
+      - name: Publish
+        run: |
+          # core first: the other two depend on it, and a published package whose
+          # dependency does not yet exist is broken for anyone who installs it in
+          # the window between.
+          for pkg in packages/core packages/sdk packages/cli; do
+            if [ "${{ inputs.dry_run }}" = "true" ]; then
+              echo "--- dry run: $pkg ---"
+              (cd "$pkg" && npm pack --dry-run)
+            else
+              (cd "$pkg" && npm publish --provenance --access public)
+            fi
+          done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
