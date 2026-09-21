@@ -13,11 +13,13 @@
     "wrangler": "^4.61.0"
   },
   "scripts": {
-    "typecheck": "tsc --build --force",
+    "build": "bun run --filter '@tomsawyerlabs/error-collector-core' build",
+    "typecheck": "bun run build && tsc -p packages/core && tsc -p worker",
     "test": "bun test",
+    "check": "bun run typecheck && bun run test && bun run format:check",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "dev": "bun run --cwd worker dev",
+    "dev": "bun run build && bun run --cwd worker dev",
     "migrate:local": "bun run --cwd worker migrate:local"
   }
 }

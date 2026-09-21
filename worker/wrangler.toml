@@ -1,0 +1,70 @@
+name = "error-collector"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+upload_source_maps = true
+
+# Domain: error-collector.tomsawyerlabs.com, declared in the ops repo at
+# cloudflare/config/workers/error-collector.yaml. Deploys happen in CI only.
+
+[triggers]
+# Every minute: refresh the budget governor from Analytics Engine.
+# Daily rollups and retention pruning are done by the 04:17 UTC tick.
+crons = ["* * * * *"]
+
+[vars]
+# Everything here is non-sensitive and safe to commit.
+#
+# Secrets (wrangler secret put / dashboard):
+#   AUTH_SECRET     — HMAC key for session and registration tokens (32+ random bytes)
+#   SECRET_KEK      — AES-GCM key encrypting app secrets at rest in D1 (32 random bytes, base64)
+#   BOOTSTRAP_TOKEN — one-time first-passkey registration; honored only while zero devices exist
+#   CF_ACCOUNT_ID / CF_ANALYTICS_TOKEN — for the governor's Analytics Engine SQL queries
+#                     and for optional Workers-plan detection
+RP_NAME = "error-collector"
+RP_ID = "error-collector.tomsawyerlabs.com"
+ORIGIN = "https://error-collector.tomsawyerlabs.com"
+# Sole owner for now. The schema carries owner_id everywhere so real accounts are
+# later an addition rather than a migration.
+OWNER_ID = "cameron"
+OWNER_NAME = "cameron"
+AE_DATASET = "error_events"
+
+# Local dev only — the ops sync system manages these for production.
+[[d1_databases]]
+binding = "DB"
+database_name = "ERRORS_DB"
+database_id = "local"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "local"
+
+[[r2_buckets]]
+binding = "BLOBS"
+bucket_name = "error-collector-blobs"
+
+[[analytics_engine_datasets]]
+binding = "AE"
+dataset = "error_events"
+
+# Cheap first line of defence on the world-open ingest endpoint. Deliberately
+# generous — a genuinely crashing app is *supposed* to be loud, and the budget
+# governor is what protects spend. This only blunts a single abusive source.
+# `period` accepts 10 or 60 only.
+[[ratelimits]]
+name = "INGEST_LIMIT"
+namespace_id = "1001"
+
+  [ratelimits.simple]
+  limit = 300
+  period = 60
+
+# Tighter limit for endpoints a human drives, where a flood is never legitimate.
+[[ratelimits]]
+name = "AUTH_LIMIT"
+namespace_id = "1002"
+
+  [ratelimits.simple]
+  limit = 20
+  period = 60
