@@ -18,6 +18,7 @@ import {
   parseInterval,
   type UsageQuery,
 } from '../analytics/usage-queries.js';
+import { listChannels } from '../storage/channels.js';
 import { authenticateReadToken, scopeAllows, scopeFilter, type AuthedToken } from './auth.js';
 
 const MAX_LIMIT = 200;
@@ -285,6 +286,14 @@ export async function handleReadApi(request: Request, env: Env, path: string): P
 
   if (path === '/api/usage') {
     return usage(env, url, token, now);
+  }
+
+  if (path === '/api/channels') {
+    const app = url.searchParams.get('app');
+    if (app && !scopeAllows(token.scope, app)) return json({ ok: false, error: 'not found' }, 404);
+
+    const channels = (await listChannels(env, app ?? undefined)).filter(c => scopeAllows(token.scope, c.app_id));
+    return json({ ok: true, channels });
   }
 
   if (path.startsWith('/api/blob/')) {

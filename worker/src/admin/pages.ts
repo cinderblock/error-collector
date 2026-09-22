@@ -24,6 +24,7 @@ import { createApp, listApps, loadAppSecret, rotateAppSecret } from '../storage/
 import { readAccountUsage, readUsage } from '../storage/usage.js';
 import { deleteDevice, listDevices } from '../auth/webauthn.js';
 import { createInvite } from '../auth/tokens.js';
+import { runDailyMaintenance } from '../cron.js';
 import { ago, bytes, count, escapeHtml, html, layout, meter } from './ui.js';
 
 function redirect(location: string): Response {
@@ -507,6 +508,16 @@ const APP_FIELDS: { key: keyof GovernorConfig['app']; label: string; hint: strin
   { key: 'maxBodyBytes', label: 'Max report body bytes', hint: '' },
   { key: 'maxBlobBytes', label: 'Max attachment bytes', hint: '' },
   { key: 'retentionDays', label: 'Keep examples for (days)', hint: 'Analytics keeps 90 days regardless.' },
+  {
+    key: 'resolvedRetentionDays',
+    label: 'Keep resolved issues for (days)',
+    hint: 'Counted from when the issue was last seen.',
+  },
+  {
+    key: 'staleIssueDays',
+    label: 'Prune untouched open issues after (days)',
+    hint: '0 = never. Open issues are the triage surface; deleting one quietly loses a real bug.',
+  },
 ];
 
 export async function settingsPage(env: Env, revealedToken?: string): Promise<Response> {
@@ -661,6 +672,16 @@ export async function settingsPage(env: Env, revealedToken?: string): Promise<Re
           </form>
         </div>
 
+        <h2>Maintenance</h2>
+        <div class="card">
+          <p class="sub" style="margin-top: 0">Runs the daily housekeeping now: usage rollup, retired-channel
+          purges, and retention pruning. It runs itself at 04:17 UTC — this is for when you have just
+          changed a retention setting and would rather not wait.</p>
+          <form method="post" action="/settings/maintenance">
+            <button class="secondary" type="submit">Run maintenance now</button>
+          </form>
+        </div>
+
         <div class="card">
           <form method="post" action="/logout"><button class="secondary" type="submit">Sign out</button></form>
         </div>`,
@@ -697,6 +718,19 @@ export async function saveGovernorAction(env: Env, request: Request): Promise<Re
     app: readNumbers(form, 'app', current.app),
   });
   return redirect('/settings');
+}
+
+export async function runMaintenanceAction(env: Env): Promise<Response> {
+  const log = await runDailyMaintenance(env);
+
+  return html(
+    layout({
+      title: 'Maintenance',
+      body: `<h1>Maintenance</h1>
+        <div class="card"><pre>${escapeHtml(log.join('\n'))}</pre></div>
+        <p><a href="/settings">← Settings</a></p>`,
+    }),
+  );
 }
 
 export async function createTokenAction(env: Env, request: Request): Promise<Response> {

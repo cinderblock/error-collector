@@ -28,6 +28,7 @@ import {
   issuesPage,
   overviewPage,
   revokeTokenAction,
+  runMaintenanceAction,
   rotateAppAction,
   saveGovernorAction,
   serveAdminBlob,
@@ -35,6 +36,7 @@ import {
   updateIssueStatus,
 } from './pages.js';
 import { usagePage } from './usage-page.js';
+import { channelsPage, reactivateChannelAction, retireChannelAction } from './channels-page.js';
 
 /** Reachable without a session. Everything else redirects to /login. */
 const PUBLIC_PATHS = new Set([
@@ -52,6 +54,7 @@ export function isAdminPath(path: string): boolean {
     path === '/' ||
     path === '/issues' ||
     path === '/usage' ||
+    path === '/channels' ||
     path === '/apps' ||
     path === '/settings' ||
     path === '/logout'
@@ -59,7 +62,11 @@ export function isAdminPath(path: string): boolean {
     return true;
   }
   return (
-    path.startsWith('/issues/') || path.startsWith('/apps/') || path.startsWith('/settings/') || path.startsWith('/b/')
+    path.startsWith('/issues/') ||
+    path.startsWith('/apps/') ||
+    path.startsWith('/settings/') ||
+    path.startsWith('/channels/') ||
+    path.startsWith('/b/')
   );
 }
 
@@ -124,6 +131,12 @@ export async function handleAdmin(request: Request, env: Env, url: URL): Promise
         return createInviteAction(env, url);
       case '/settings/devices/delete':
         return deleteDeviceAction(env, request);
+      case '/settings/maintenance':
+        return runMaintenanceAction(env);
+      case '/channels/retire':
+        return retireChannelAction(env, request);
+      case '/channels/reactivate':
+        return reactivateChannelAction(env, request);
     }
 
     const rotate = /^\/apps\/([^/]+)\/rotate$/.exec(path);
@@ -142,6 +155,8 @@ export async function handleAdmin(request: Request, env: Env, url: URL): Promise
       return issuesPage(env, url);
     case '/usage':
       return usagePage(env, url);
+    case '/channels':
+      return channelsPage(env, url);
     case '/apps':
       return appsPage(env);
     case '/settings':

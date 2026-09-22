@@ -78,6 +78,7 @@ export class Client {
   private usageQueue: UsageEvent[] = [];
   private usageTimer: ReturnType<typeof setTimeout> | undefined;
   private unloadHooked = false;
+  private retired = false;
 
   constructor(options: InitOptions) {
     if (!options.endpoint?.trim()) {
@@ -101,6 +102,23 @@ export class Client {
 
   get usageUrl(): string {
     return `${this.endpoint}/u/${this.options.ingestKey}`;
+  }
+
+  /**
+   * True once the backend has answered `410 Gone` — this version's channel has been
+   * retired and is no longer collected.
+   *
+   * The client then stops sending for the rest of the session. That is the whole
+   * point of the server answering 410 rather than 404 or 429: it is the one status a
+   * client can act on correctly. Without this, a retired version in the field keeps
+   * hammering an endpoint that will never accept it again, which costs the user
+   * battery and the backend its rate limit.
+   *
+   * Deliberately not persisted. A fresh session asks again, so un-retiring a channel
+   * brings clients back without them needing to clear anything.
+   */
+  get isRetired(): boolean {
+    return this.retired;
   }
 
   setUser(user: ReportUser | undefined): void {
@@ -160,6 +178,7 @@ export class Client {
    * does, and it must not be able to slow down or break the app it is measuring.
    */
   track(event: string, options: { value?: number; dims?: Record<string, string> } = {}): void {
+    if (this.retired) return;
     try {
       this.usageQueue.push({ event, value: options.value, dims: options.dims });
 
@@ -189,6 +208,10 @@ export class Client {
 
   /** Sends anything queued. Safe to call at any time, including when empty. */
   async flushUsage(): Promise<void> {
+    if (this.retired) {
+      this.usageQueue.length = 0;
+      return;
+    }
     if (this.usageTimer !== undefined) {
       clearTimeout(this.usageTimer);
       this.usageTimer = undefined;
@@ -211,7 +234,7 @@ export class Client {
         headers['x-report-timestamp'] = String(timestamp);
       }
 
-      await fetch(this.usageUrl, { method: 'POST', headers, body, keepalive: body.length < 60_000 });
+      this.noteStatus(await fetch(this.usageUrl, { method: 'POST', headers, body, keepalive: body.length < 60_000 }));
     } catch (error) {
       // Deliberately not requeued. A retry loop against a failing endpoint would
       // grow unboundedly in memory and hammer a backend that is already unwell, to
@@ -281,6 +304,8 @@ export class Client {
   }
 
   private async transport(payload: ReportPayload, screenshot?: Blob): Promise<void> {
+    if (this.retired) return;
+
     const body = JSON.stringify(payload);
     const headers: Record<string, string> = {};
 
@@ -295,18 +320,35 @@ export class Client {
       const form = new FormData();
       form.set('report', body);
       form.set('screenshot', screenshot, 'screenshot.png');
-      await fetch(this.url, { method: 'POST', body: form, headers, keepalive: false });
+      this.noteStatus(await fetch(this.url, { method: 'POST', body: form, headers, keepalive: false }));
       return;
     }
 
-    await fetch(this.url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', ...headers },
-      body,
-      // Lets an in-flight report survive the page unloading, which is exactly when
-      // the most interesting crashes happen.
-      keepalive: body.length < 60_000,
-    });
+    this.noteStatus(
+      await fetch(this.url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...headers },
+        body,
+        // Lets an in-flight report survive the page unloading, which is exactly when
+        // the most interesting crashes happen.
+        keepalive: body.length < 60_000,
+      }),
+    );
+  }
+
+  /** Stands down permanently on 410, and only on 410. */
+  private noteStatus(response: { status: number } | undefined): void {
+    if (response?.status !== 410) return;
+
+    this.retired = true;
+    this.usageQueue.length = 0;
+    if (this.usageTimer !== undefined) {
+      clearTimeout(this.usageTimer);
+      this.usageTimer = undefined;
+    }
+    if (this.options.debug) {
+      console.info('[telemetry-collector] this version has been retired; no further reports will be sent');
+    }
   }
 }
 
@@ -359,4 +401,9 @@ export function track(event: string, options?: { value?: number; dims?: Record<s
 
 export function flushUsage(): Promise<void> {
   return current?.flushUsage() ?? Promise.resolve();
+}
+
+/** True once the backend has reported this version's channel as retired. */
+export function isRetired(): boolean {
+  return current?.isRetired ?? false;
 }

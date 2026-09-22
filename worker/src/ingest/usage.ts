@@ -36,6 +36,7 @@ import type { Env } from '../env.js';
 import { nowSeconds } from '../env.js';
 import { readGovernorState, type GovernorLevel } from '../governor.js';
 import { loadAppSecret } from '../storage/apps.js';
+import { resolveChannel } from '../storage/channels.js';
 
 const CORS_HEADERS: Record<string, string> = {
   'access-control-allow-origin': '*',
@@ -91,6 +92,21 @@ export async function handleUsage(request: Request, env: Env, ingestKey: string)
   // MAC" would turn a public endpoint into an app-name oracle.
   if (!secret) return json({ ok: false, error: 'unknown ingest key' }, 401);
   if (!(await verifyIngestKey(secret, ingestKey))) return json({ ok: false, error: 'unknown ingest key' }, 401);
+
+  // Retirement applies to usage exactly as it does to errors — a retired version
+  // should go quiet altogether, not half of it.
+  const channel = await resolveChannel(env, parsed.appId, parsed.channel);
+  if (channel.status === 'retired') {
+    return json(
+      {
+        ok: false,
+        error: 'channel retired',
+        detail: channel.note ?? 'This version is no longer collecting telemetry.',
+        retired_at: channel.retiredAt,
+      },
+      410,
+    );
+  }
 
   const clientIp = request.headers.get('cf-connecting-ip') ?? 'unknown';
   const { success } = await env.INGEST_LIMIT.limit({ key: `u:${parsed.appId}:${clientIp}` });

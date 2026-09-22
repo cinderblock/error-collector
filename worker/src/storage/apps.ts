@@ -9,7 +9,7 @@
  */
 
 import { generateAppSecret, isValidAppId } from '@cinderblock/telemetry-collector-core';
-import { memo, forget } from '../cache.js';
+import { forget, memo } from '../cache.js';
 import type { Env } from '../env.js';
 import { nowSeconds } from '../env.js';
 import { openSecret, sealSecret } from './secrets.js';
@@ -105,37 +105,6 @@ export async function rotateAppSecret(env: Env, appId: string): Promise<string> 
 
   forget(`app:${appId}`);
   return secret;
-}
-
-/**
- * Registers a channel the first time it is seen.
- *
- * Kept off the write path once a channel is known: `last_seen` is refreshed by the
- * daily cron rather than per report, because an UPDATE here would double the steady
- * state cost of every single report for information that is already derivable from
- * the issues table.
- */
-export async function ensureChannel(env: Env, appId: string, channel: string): Promise<void> {
-  const key = `chan:${appId}:${channel}`;
-
-  const known = await memo(key, CHANNEL_TTL_SECONDS, async () => {
-    const cached = await env.KV.get(key, { cacheTtl: CHANNEL_TTL_SECONDS });
-    if (cached) return true;
-
-    const now = nowSeconds();
-    await env.DB.prepare(
-      `INSERT INTO channels (app_id, channel, owner_id, first_seen, last_seen) VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT (app_id, channel) DO NOTHING`,
-    )
-      .bind(appId, channel, env.OWNER_ID, now, now)
-      .run();
-
-    // One KV write per channel ever, not per report.
-    await env.KV.put(key, '1', { expirationTtl: 86_400 });
-    return true;
-  });
-
-  void known;
 }
 
 export function listApps(env: Env): Promise<D1Result<AppRecord>> {

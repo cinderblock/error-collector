@@ -52,7 +52,19 @@ export interface AppBudget {
   keepFirst: number;
   maxBodyBytes: number;
   maxBlobBytes: number;
+  /** How long event samples and attachments are kept. */
   retentionDays: number;
+  /**
+   * How long a resolved or ignored issue is kept after it was last seen. Issues were
+   * previously never pruned at all, so the table grew without bound.
+   */
+  resolvedRetentionDays: number;
+  /**
+   * How long an *open* issue may sit untouched before it is pruned. 0 disables it,
+   * which is the default: an open issue is the triage surface, and quietly deleting
+   * one is how a real bug gets forgotten. Opt in deliberately.
+   */
+  staleIssueDays: number;
 }
 
 export interface GovernorConfig {
@@ -87,6 +99,8 @@ export const PRESETS: Record<Plan, { account: AccountBudget; app: AppBudget }> =
       maxBodyBytes: 256 * 1024,
       maxBlobBytes: 3 * 1024 * 1024,
       retentionDays: 30,
+      resolvedRetentionDays: 60,
+      staleIssueDays: 0,
     },
   },
   paid: {
@@ -105,6 +119,8 @@ export const PRESETS: Record<Plan, { account: AccountBudget; app: AppBudget }> =
       maxBodyBytes: 1024 * 1024,
       maxBlobBytes: 10 * 1024 * 1024,
       retentionDays: 90,
+      resolvedRetentionDays: 180,
+      staleIssueDays: 0,
     },
   },
 };

@@ -533,5 +533,12 @@ Things that were not obvious going in, recorded so they are not re-derived:
       `/api/usage`, admin tab with validated charts, `track()` in the SDK, `usage` and
       `track` in the CLI, and the daily rollup that beats AE's 90-day retention.
       216 tests.
+- [x] 2026-09-22 — Channel lifecycle and retention. Retiring a version is explicit and
+      answers 410, which the SDK honours by standing down; retire-then-purge-later
+      covers the graceful transition. Issues were previously never pruned at all —
+      resolved/ignored now age out, open ones only if opted into. Daily maintenance is
+      callable on demand rather than only at 04:17, because tying it to one minute of
+      the day made it untestable. Verified end to end including that purging deletes
+      the R2 _objects_, not just the rows that cascade away.
 - [ ] Phase 2: Sentry envelope dialect.
 - [ ] Wire the first real project (candidate: Gate Manager) end to end.

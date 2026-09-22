@@ -165,6 +165,49 @@ Reading usage needs an account API token (`CF_ANALYTICS_TOKEN` + `CF_ACCOUNT_ID`
 because AE is _written_ through a binding but _queried_ over HTTPS. Writing works
 without one; the admin UI says so rather than erroring.
 
+## Retiring a version
+
+A version eventually stops being one you want reports from — but that is a judgement
+call, not a date. People update at their own pace, and the whole reason to collect
+from 1.4.2 is that some of them are still running it. So **nothing ever retires a
+channel on its own.** The Channels tab flags ones that have gone quiet for 30 days and
+leaves the decision to you.
+
+Retiring is separate from deleting, because "stop accepting" and "throw away what we
+have" usually want different timing:
+
+- **Retire** — the channel's ingest key starts answering `410 Gone`. The SDK honours
+  that by standing down for the rest of the session rather than retrying, so old
+  clients in the field stop costing their users battery and you rate limit. Only on
+  410; a 429 or a 500 is transient and changes nothing.
+- **Retire and delete in N days** — the graceful version. Stop collecting now, and the
+  daily maintenance removes that channel's issues, events and attachments later.
+
+Reactivating undoes both. The channel row itself is never deleted by a purge — if it
+were, the next stray report from an old client would recreate it as active and quietly
+undo the retirement.
+
+Retirement is cached on the ingest path so that checking it costs nothing per report,
+which means it takes up to a minute to take effect everywhere.
+
+## Clearing out old data
+
+| What                          | When it goes                                 | Setting                                    |
+| ----------------------------- | -------------------------------------------- | ------------------------------------------ |
+| Event samples and attachments | after `retentionDays`                        | 30 free / 90 paid                          |
+| Resolved and ignored issues   | after `resolvedRetentionDays` from last seen | 60 free / 180 paid                         |
+| Open issues                   | only if you opt in                           | `staleIssueDays`, **0 (never) by default** |
+| A retired channel's data      | on its scheduled purge date                  | set when retiring                          |
+| Usage in Analytics Engine     | 90 days, fixed                               | rolled into D1 daily first                 |
+
+Open issues are never auto-deleted unless you deliberately set `staleIssueDays` — an
+open issue is the triage surface, and silently deleting one is how a real bug gets
+forgotten.
+
+Housekeeping runs at 04:17 UTC, and there is a **Run maintenance now** button in
+Settings for when you have just changed a retention setting and would rather not sleep
+on it.
+
 ## Reading the data
 
 ```sh

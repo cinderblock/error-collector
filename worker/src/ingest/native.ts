@@ -23,7 +23,8 @@ import {
 import type { Env } from '../env.js';
 import { dayKey, nowSeconds } from '../env.js';
 import { decideStorage, levelFor, loadGovernorConfig } from '../governor.js';
-import { ensureChannel, loadAppSecret } from '../storage/apps.js';
+import { loadAppSecret } from '../storage/apps.js';
+import { resolveChannel } from '../storage/channels.js';
 import {
   loadExistingIssue,
   recordRejection,
@@ -115,6 +116,23 @@ export async function handleIngest(request: Request, env: Env, ingestKey: string
   const verified = await verifyIngestKey(secret, ingestKey);
   if (!verified) return json({ ok: false, error: 'unknown ingest key' }, 401);
 
+  // Checked before anything expensive: a retired channel should cost a cache read
+  // and a response, not a body parse and three queries.
+  const channel = await resolveChannel(env, parsed.appId, parsed.channel);
+  if (channel.status === 'retired') {
+    return json(
+      {
+        ok: false,
+        error: 'channel retired',
+        detail: channel.note ?? 'This version is no longer collecting reports.',
+        retired_at: channel.retiredAt,
+      },
+      // 410, not 404 or 429: this endpoint worked and is now permanently done. It is
+      // the one status a client can act on correctly — stop trying — and the SDK does.
+      410,
+    );
+  }
+
   const now = nowSeconds();
   const day = dayKey(now);
   const config = await loadGovernorConfig(env);
@@ -181,8 +199,6 @@ export async function handleIngest(request: Request, env: Env, ingestKey: string
     await recordRejection(env, day, parsed.appId);
     return json({ ok: false, error: decision.reason }, 429, { 'retry-after': '3600' });
   }
-
-  await ensureChannel(env, parsed.appId, parsed.channel);
 
   const result = await recordReport(env, {
     appId: parsed.appId,

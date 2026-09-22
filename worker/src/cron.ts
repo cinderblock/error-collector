@@ -20,6 +20,7 @@ import { AnalyticsUnavailableError, runSql } from './analytics/sql.js';
 import { dailyRollupSql } from './analytics/usage-queries.js';
 import { levelFor, loadGovernorConfig, publishGovernorState, usageRatio } from './governor.js';
 import { listApps } from './storage/apps.js';
+import { clearPurgeSchedule, duePurges } from './storage/channels.js';
 import { readAccountUsage } from './storage/usage.js';
 
 /** Deletes per daily sweep. At 30-day retention this clears a steady 2k events/day. */
@@ -33,12 +34,44 @@ export async function runScheduled(event: ScheduledController, env: Env): Promis
 
   // 04:17 UTC — deliberately not on the hour, where every other scheduled job is.
   if (minuteOfDay === 4 * 60 + 17) {
-    await rollUpUsage(env, now);
-    await refreshChannels(env);
-    await prune(env, now);
+    await runDailyMaintenance(env, now);
   }
 
   void event;
+}
+
+/**
+ * The daily housekeeping, as one callable unit.
+ *
+ * Separated from the clock on purpose. Wiring it directly into "is it 04:17?" made it
+ * impossible to exercise without waiting for a specific minute of the day, which is
+ * how retention bugs survive to production — and it also meant there was no way to
+ * make a retention change take effect without sleeping on it. The admin UI can now
+ * run it on demand.
+ *
+ * Every step is independent; one failing must not abandon the rest.
+ */
+export async function runDailyMaintenance(env: Env, now: number = nowSeconds()): Promise<string[]> {
+  const log: string[] = [];
+
+  for (const [name, step] of [
+    ['usage rollup', () => rollUpUsage(env, now)],
+    ['channel recency', () => refreshChannels(env)],
+    ['retired channel purge', () => purgeRetiredChannels(env, now)],
+    ['issue pruning', () => pruneIssues(env, now)],
+    ['event and blob pruning', () => prune(env, now)],
+  ] as const) {
+    try {
+      await step();
+      log.push(`${name}: ok`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`maintenance step "${name}" failed`, error);
+      log.push(`${name}: FAILED — ${message}`);
+    }
+  }
+
+  return log;
 }
 
 async function publishLevel(env: Env, now: number): Promise<void> {
@@ -112,6 +145,115 @@ async function refreshChannels(env: Env): Promise<void> {
           AND issues.last_channel = channels.channel),
        last_seen)`,
   ).run();
+}
+
+/**
+ * Deletes the R2 objects belonging to a set of issues, then the issues themselves.
+ *
+ * Order and explicitness both matter. `events` cascades from `issues` and `blobs`
+ * cascades from `events`, so deleting an issue silently takes the blob *rows* with
+ * it — and the R2 *objects* they pointed at would be orphaned, invisible, and billed
+ * forever. The ledger has to be read before it is destroyed.
+ */
+async function deleteIssuesAndObjects(env: Env, issueIds: string[]): Promise<number> {
+  if (issueIds.length === 0) return 0;
+
+  const placeholders = issueIds.map(() => '?').join(', ');
+  const { results: objects } = await env.DB.prepare(
+    `SELECT b.key FROM blobs b JOIN events e ON e.id = b.event_id
+     WHERE e.issue_id IN (${placeholders})`,
+  )
+    .bind(...issueIds)
+    .all<{ key: string }>();
+
+  for (const { key } of objects) {
+    await env.BLOBS.delete(key);
+  }
+
+  await env.DB.batch(
+    issueIds.map(id => env.DB.prepare('DELETE FROM issues WHERE id = ? AND owner_id = ?').bind(id, env.OWNER_ID)),
+  );
+
+  return issueIds.length;
+}
+
+/**
+ * Deletes the data belonging to channels whose scheduled purge has come due.
+ *
+ * The channel *row* deliberately survives. Deleting it would let the next stray
+ * report from an old client recreate it as active — undoing the retirement and
+ * starting collection again, which is the opposite of what was asked for.
+ */
+async function purgeRetiredChannels(env: Env, now: number): Promise<void> {
+  const due = await duePurges(env, now);
+
+  for (const channel of due) {
+    const { results: issues } = await env.DB.prepare(
+      'SELECT id FROM issues WHERE owner_id = ? AND app_id = ? AND last_channel = ? LIMIT ?',
+    )
+      .bind(env.OWNER_ID, channel.app_id, channel.channel, PRUNE_LIMIT)
+      .all<{ id: string }>();
+
+    const deleted = await deleteIssuesAndObjects(
+      env,
+      issues.map(row => row.id),
+    );
+
+    // Events not attached to a surviving issue for this channel (samples whose issue
+    // last appeared on a different channel) still belong to it.
+    await env.DB.prepare('DELETE FROM events WHERE app_id = ? AND channel = ?')
+      .bind(channel.app_id, channel.channel)
+      .run();
+
+    console.log(`purged retired channel ${channel.app_id}/${channel.channel}: ${deleted} issue(s)`);
+
+    // Only clear the schedule once a pass completes under the limit, so a channel
+    // with more than PRUNE_LIMIT issues keeps being worked on tomorrow.
+    if (issues.length < PRUNE_LIMIT) {
+      await clearPurgeSchedule(env, channel.app_id, channel.channel);
+    }
+  }
+}
+
+/**
+ * Prunes issues that have aged out.
+ *
+ * Resolved and ignored issues go on `resolvedRetentionDays`. Open ones are only
+ * touched if `staleIssueDays` has been deliberately set above zero — an open issue is
+ * the triage surface, and silently deleting one is how a real bug gets forgotten.
+ */
+async function pruneIssues(env: Env, now: number): Promise<void> {
+  const config = await loadGovernorConfig(env);
+
+  const closedCutoff = now - config.app.resolvedRetentionDays * 86_400;
+  const { results: closed } = await env.DB.prepare(
+    `SELECT id FROM issues
+     WHERE owner_id = ? AND status IN ('resolved', 'ignored') AND last_seen < ?
+     LIMIT ?`,
+  )
+    .bind(env.OWNER_ID, closedCutoff, PRUNE_LIMIT)
+    .all<{ id: string }>();
+
+  const closedDeleted = await deleteIssuesAndObjects(
+    env,
+    closed.map(row => row.id),
+  );
+  if (closedDeleted > 0) console.log(`pruned ${closedDeleted} resolved/ignored issue(s)`);
+
+  if (config.app.staleIssueDays > 0) {
+    const staleCutoff = now - config.app.staleIssueDays * 86_400;
+    const { results: stale } = await env.DB.prepare(
+      `SELECT id FROM issues WHERE owner_id = ? AND status = 'open' AND last_seen < ? LIMIT ?`,
+    )
+      .bind(env.OWNER_ID, staleCutoff, PRUNE_LIMIT)
+      .all<{ id: string }>();
+
+    const staleDeleted = await deleteIssuesAndObjects(
+      env,
+      stale.map(row => row.id),
+    );
+    if (staleDeleted > 0) console.log(`pruned ${staleDeleted} stale open issue(s)`);
+  }
 }
 
 async function prune(env: Env, now: number): Promise<void> {

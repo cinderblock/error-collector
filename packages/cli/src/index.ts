@@ -92,6 +92,7 @@ const HELP = `telemetry-collector — report errors and pull triage data
   issue     <issue-id>                    one issue with its event samples
   apps                                    apps this token can see
   usage     --app <id> [--since 7d]       usage analytics (sampled estimates)
+  channels  [--app <id>]                  versions/environments and whether each is live
   report    --key <ingestKey> --message   send a report (e.g. from a CI failure)
   track     --key <ingestKey> <event>     record a usage event
 
@@ -198,6 +199,18 @@ async function main(): Promise<void> {
       return;
     }
 
+    case 'channels': {
+      const data = (await api(flags, '/api/channels', { app: str(flags, 'app') })) as {
+        channels: ChannelRow[];
+      };
+      if (asJson) {
+        console.log(JSON.stringify(data, null, 2));
+        return;
+      }
+      printChannels(data.channels);
+      return;
+    }
+
     case 'report': {
       await report(flags, positional);
       return;
@@ -290,6 +303,41 @@ async function track(flags: Flags, positional: string[]): Promise<void> {
 // ---------------------------------------------------------------------------
 // Output
 // ---------------------------------------------------------------------------
+
+interface ChannelRow {
+  app_id: string;
+  channel: string;
+  status: string;
+  last_seen: number;
+  retired_at: number | null;
+  purge_after: number | null;
+  note: string | null;
+  issues: number;
+  events: number;
+}
+
+function printChannels(channels: ChannelRow[]): void {
+  if (channels.length === 0) {
+    console.log('No channels yet — nothing has reported.');
+    return;
+  }
+
+  const width = Math.max(...channels.map(c => c.channel.length));
+  for (const channel of channels) {
+    const state = channel.status === 'retired' ? 'RETIRED' : 'live';
+    const purge = channel.purge_after
+      ? `  purge ${new Date(channel.purge_after * 1000).toISOString().slice(0, 10)}`
+      : '';
+    console.log(
+      `  ${channel.channel.padEnd(width)}  ${state.padEnd(7)}  ${channel.app_id.padEnd(16)}` +
+        `  ${ago(channel.last_seen).padStart(4)} ago  ${String(channel.issues).padStart(5)} issues${purge}` +
+        (channel.note ? `  — ${channel.note}` : ''),
+    );
+  }
+  // Retiring is deliberately not a CLI action: it is a judgement call about whether
+  // anyone is still running that version, and belongs with a human in the admin UI.
+  console.log('\nRetire or resume a channel from the admin UI.');
+}
 
 interface UsageResponse {
   app: string;

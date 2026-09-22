@@ -242,6 +242,12 @@ signs automatically when `TELEMETRY_COLLECTOR_APP_SECRET` is present.
   attempt still costs the app's daily quota. Report once per distinct failure.
 - **Don't put an app id with a dot in it** anywhere. Key parsing splits on the first
   dot for the app and the last for the MAC.
+- **Never retire a channel to "clean up".** Retiring stops a version being collected,
+  and it is a judgement call about whether anyone is still running it — which is why
+  there is no CLI command for it and no automation behind it. If a channel looks
+  stale, say so and let the user decide.
+- **A 410 is not an error to fix.** It means that version was deliberately retired.
+  Report it as such; do not retry, and do not "repair" the ingest key.
 - **Don't put an id, a timestamp or a path into a usage event name.** It is the
   grouping key; high cardinality there makes the data useless and is the single most
   common analytics mistake. `page.view` with `dims: {route: '/gate'}`, never

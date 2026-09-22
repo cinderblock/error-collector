@@ -161,3 +161,81 @@ describe('usage tracking', () => {
     expect(calls).toHaveLength(0);
   });
 });
+
+describe('retirement (410)', () => {
+  const original = globalThis.fetch;
+
+  function respondWith(status: number) {
+    const calls: string[] = [];
+    globalThis.fetch = (async (url: string | URL | Request) => {
+      calls.push(String(url));
+      return new Response('{"ok":false,"error":"channel retired"}', { status });
+    }) as typeof fetch;
+    return calls;
+  }
+
+  afterEach(() => {
+    globalThis.fetch = original;
+  });
+
+  it('stands down after a 410 and sends nothing further', async () => {
+    // A retired version in the field would otherwise hammer an endpoint that will
+    // never accept it again — the user's battery and the backend's rate limit.
+    const calls = respondWith(410);
+    const client = new Client({ endpoint: ENDPOINT, ingestKey: KEY });
+
+    await client.captureMessage('first');
+    expect(calls).toHaveLength(1);
+    expect(client.isRetired).toBe(true);
+
+    await client.captureMessage('second');
+    await client.captureException(new Error('third'));
+    expect(calls).toHaveLength(1);
+  });
+
+  it('drops queued usage and stops accepting new events', async () => {
+    const calls = respondWith(410);
+    const client = new Client({ endpoint: ENDPOINT, ingestKey: KEY });
+
+    client.track('before');
+    await client.flushUsage();
+    expect(calls).toHaveLength(1);
+
+    client.track('after');
+    await client.flushUsage();
+    expect(calls).toHaveLength(1);
+  });
+
+  it('retires from the usage endpoint too, not just reports', async () => {
+    const calls = respondWith(410);
+    const client = new Client({ endpoint: ENDPOINT, ingestKey: KEY });
+
+    client.track('x');
+    await client.flushUsage();
+
+    expect(calls[0]).toContain('/u/');
+    expect(client.isRetired).toBe(true);
+    await client.captureMessage('should not send');
+    expect(calls).toHaveLength(1);
+  });
+
+  it('does not stand down on any other status', async () => {
+    // 429 and 500 are transient; treating them as retirement would silence a client
+    // permanently over a blip.
+    for (const status of [200, 202, 400, 401, 429, 500, 503]) {
+      const calls = respondWith(status);
+      const client = new Client({ endpoint: ENDPOINT, ingestKey: KEY });
+
+      await client.captureMessage('one');
+      await client.captureMessage('two');
+      expect(client.isRetired).toBe(false);
+      expect(calls).toHaveLength(2);
+    }
+  });
+
+  it('is not persisted — a fresh client asks again', () => {
+    // Un-retiring a channel should bring clients back without them clearing anything.
+    respondWith(410);
+    expect(new Client({ endpoint: ENDPOINT, ingestKey: KEY }).isRetired).toBe(false);
+  });
+});

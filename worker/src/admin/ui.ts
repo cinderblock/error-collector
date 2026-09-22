@@ -167,6 +167,7 @@ export function layout({ title, authed = true, body, head = '' }: LayoutOptions)
          <a href="/">Overview</a>
          <a href="/issues">Issues</a>
          <a href="/usage">Usage</a>
+         <a href="/channels">Channels</a>
          <a href="/apps">Apps</a>
          <a href="/settings">Settings</a>
        </nav>`
