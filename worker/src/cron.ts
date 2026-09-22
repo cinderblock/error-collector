@@ -4,8 +4,10 @@
  * One cron trigger fires every minute and fans out by clock, rather than declaring
  * several triggers, so there is a single place to reason about what runs when.
  *
- * - Every minute: publish the governor's current level for the admin UI.
- * - 04:17 UTC: refresh channel recency, then prune expired events and blobs.
+ * - Every minute: publish the governor's current level, which the usage ingest path
+ *   reads from KV to decide whether it still has budget.
+ * - 04:17 UTC: roll yesterday's usage out of Analytics Engine into D1, refresh
+ *   channel recency, then prune expired events and blobs.
  *
  * Pruning is chunked. A retention sweep that tried to clear a backlog in one pass
  * could spend the entire day's D1 row-write allowance on deletes and leave nothing
@@ -14,7 +16,10 @@
 
 import type { Env } from './env.js';
 import { dayKey, nowSeconds } from './env.js';
+import { AnalyticsUnavailableError, runSql } from './analytics/sql.js';
+import { dailyRollupSql } from './analytics/usage-queries.js';
 import { levelFor, loadGovernorConfig, publishGovernorState, usageRatio } from './governor.js';
+import { listApps } from './storage/apps.js';
 import { readAccountUsage } from './storage/usage.js';
 
 /** Deletes per daily sweep. At 30-day retention this clears a steady 2k events/day. */
@@ -28,6 +33,7 @@ export async function runScheduled(event: ScheduledController, env: Env): Promis
 
   // 04:17 UTC — deliberately not on the hour, where every other scheduled job is.
   if (minuteOfDay === 4 * 60 + 17) {
+    await rollUpUsage(env, now);
     await refreshChannels(env);
     await prune(env, now);
   }
@@ -46,6 +52,52 @@ async function publishLevel(env: Env, now: number): Promise<void> {
     updatedAt: now,
     usage,
   });
+}
+
+/**
+ * Copies yesterday's usage totals from Analytics Engine into D1.
+ *
+ * AE keeps 90 days with no knob, so this is the only way to have a year-on-year
+ * number later — and it cannot be backfilled, because the source data is simply gone
+ * once it expires. Runs for *yesterday* rather than today so the day is complete;
+ * re-running is safe because the write is an upsert keyed on (day, app, event).
+ *
+ * Skipped without complaint when the account token is absent: writing usage needs no
+ * token, only reading does, so a deployment can legitimately collect usage for a
+ * while before anyone sets one up. Nothing is lost until data ages out.
+ */
+async function rollUpUsage(env: Env, now: number): Promise<void> {
+  const dayEnd = Math.floor(now / 86_400) * 86_400;
+  const dayStart = dayEnd - 86_400;
+  const day = dayKey(dayStart);
+
+  const apps = await listApps(env);
+
+  for (const app of apps.results) {
+    try {
+      const result = await runSql<{ event: string; events: number; value: number }>(
+        env,
+        dailyRollupSql(env.USAGE_DATASET, app.id, dayStart, dayEnd),
+      );
+      if (result.data.length === 0) continue;
+
+      await env.DB.batch(
+        result.data.map(row =>
+          env.DB.prepare(
+            `INSERT INTO usage_rollup (day, app_id, event, owner_id, events, value)
+             VALUES (?, ?, ?, ?, ?, ?)
+             ON CONFLICT (day, app_id, event) DO UPDATE SET
+               events = excluded.events, value = excluded.value`,
+          ).bind(day, app.id, row.event, env.OWNER_ID, row.events, row.value),
+        ),
+      );
+    } catch (error) {
+      if (error instanceof AnalyticsUnavailableError) return;
+      // One app's rollup failing must not abandon the rest, and must not take the
+      // prune that follows down with it.
+      console.error(`usage rollup failed for ${app.id}`, error);
+    }
+  }
 }
 
 /**

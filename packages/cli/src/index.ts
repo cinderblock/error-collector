@@ -91,7 +91,9 @@ const HELP = `telemetry-collector — report errors and pull triage data
   issues    --app <id> [--status open]    list issues
   issue     <issue-id>                    one issue with its event samples
   apps                                    apps this token can see
+  usage     --app <id> [--since 7d]       usage analytics (sampled estimates)
   report    --key <ingestKey> --message   send a report (e.g. from a CI failure)
+  track     --key <ingestKey> <event>     record a usage event
 
 Credentials, by environment variable:
   TELEMETRY_COLLECTOR_URL           base URL of your deployment (required)
@@ -176,8 +178,33 @@ async function main(): Promise<void> {
       return;
     }
 
+    case 'usage': {
+      const data = (await api(flags, '/api/usage', {
+        app: str(flags, 'app'),
+        since: str(flags, 'since'),
+        interval: str(flags, 'interval'),
+        groupBy: str(flags, 'groupBy') ?? str(flags, 'group-by'),
+        event: str(flags, 'event'),
+        channel: str(flags, 'channel'),
+        release: str(flags, 'release'),
+        limit: str(flags, 'limit'),
+      })) as UsageResponse;
+
+      if (asJson) {
+        console.log(JSON.stringify(data, null, 2));
+      } else {
+        printUsage(data);
+      }
+      return;
+    }
+
     case 'report': {
       await report(flags, positional);
+      return;
+    }
+
+    case 'track': {
+      await track(flags, positional);
       return;
     }
 
@@ -227,9 +254,82 @@ async function report(flags: Flags, positional: string[]): Promise<void> {
   console.log(text);
 }
 
+async function track(flags: Flags, positional: string[]): Promise<void> {
+  const key = str(flags, 'key', 'TELEMETRY_COLLECTOR_INGEST_KEY');
+  if (!key) fail('--key (or TELEMETRY_COLLECTOR_INGEST_KEY) is required');
+
+  const event = str(flags, 'event') ?? positional[0];
+  if (!event) fail('usage: telemetry-collector track --key <ingestKey> <event.name>');
+
+  const dims: Record<string, string> = {};
+  for (const [name, value] of Object.entries(flags)) {
+    // Anything after `--dim.` becomes a dimension: --dim.method=cli
+    if (name.startsWith('dim.') && typeof value === 'string') dims[name.slice(4)] = value;
+  }
+
+  const body = JSON.stringify({
+    events: [{ event, value: Number(str(flags, 'value') ?? '1'), dims }],
+    release: str(flags, 'release'),
+    environment: str(flags, 'environment'),
+  });
+
+  const headers: Record<string, string> = { 'content-type': 'application/json' };
+  const secret = str(flags, 'secret', 'TELEMETRY_COLLECTOR_APP_SECRET');
+  if (secret) {
+    const timestamp = Math.floor(Date.now() / 1000);
+    headers['x-report-signature'] = await signReport(secret, timestamp, body);
+    headers['x-report-timestamp'] = String(timestamp);
+  }
+
+  const response = await fetch(`${endpoint(flags)}/u/${key}`, { method: 'POST', headers, body });
+  const text = await response.text();
+  if (!response.ok) fail(`${response.status}: ${text}`);
+  console.log(text);
+}
+
 // ---------------------------------------------------------------------------
 // Output
 // ---------------------------------------------------------------------------
+
+interface UsageResponse {
+  app: string;
+  interval: string;
+  group_by: string;
+  series: { bucket: string; events: number; value: number }[];
+  breakdown: { key: string; events: number; value: number }[];
+}
+
+function printUsage(data: UsageResponse): void {
+  const total = data.series.reduce((sum, row) => sum + Number(row.events), 0);
+  console.log(`# ${data.app} — ${Math.round(total).toLocaleString()} events (estimated)
+`);
+
+  if (data.breakdown.length > 0) {
+    const width = Math.max(...data.breakdown.map(row => (row.key || '(none)').length));
+    const peak = Math.max(...data.breakdown.map(row => Number(row.events)), 1);
+
+    console.log(`by ${data.group_by}:`);
+    for (const row of data.breakdown) {
+      const events = Number(row.events);
+      // A proportional bar reads faster than the numbers alone, and costs nothing.
+      const bar = '#'.repeat(Math.max(1, Math.round((events / peak) * 28)));
+      console.log(`  ${(row.key || '(none)').padEnd(width)}  ${String(Math.round(events)).padStart(9)}  ${bar}`);
+    }
+    console.log();
+  }
+
+  if (data.series.length > 0) {
+    console.log(`per ${data.interval}:`);
+    for (const row of data.series) {
+      console.log(`  ${row.bucket}  ${String(Math.round(Number(row.events))).padStart(9)}`);
+    }
+    console.log();
+  }
+
+  // Said every time rather than buried in docs: these are sampled estimates, and
+  // someone will eventually try to reconcile them against an exact number.
+  console.log('Totals are weighted estimates from Analytics Engine sampling, not exact counts.');
+}
 
 interface IssueSummary {
   id: string;

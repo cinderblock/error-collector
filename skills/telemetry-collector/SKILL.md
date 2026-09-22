@@ -1,13 +1,13 @@
 ---
 name: telemetry-collector
-description: Wire a project up to the telemetry-collector backend, or pull its collected errors and user feedback for triage. Use when asked to "add error reporting", "collect crashes/feedback from this app", "set up telemetry-collector", "what errors are users hitting", "check reported bugs", "triage production errors", or when investigating a bug that users have reported from a deployed app.
+description: Wire a project up to the telemetry-collector backend, or pull its collected errors, user feedback and usage analytics. Use when asked to "add error reporting", "add usage tracking/analytics", "collect crashes/feedback from this app", "set up telemetry-collector", "what errors are users hitting", "check reported bugs", "triage production errors", "how much is this feature used", or when investigating a bug that users have reported from a deployed app.
 ---
 
 # telemetry-collector
 
-A self-hosted crash and feedback collector running on Cloudflare. This skill covers
-the two things an agent does with it: **wiring a project up to it**, and **reading the
-data to fix things**.
+A self-hosted collector for crashes, user feedback and usage analytics, running on
+Cloudflare. This skill covers the two things an agent does with it: **wiring a project
+up to it**, and **reading the data to fix things**.
 
 **Where is it?** There is no canonical server and no hostname baked into anything —
 read `TELEMETRY_COLLECTOR_URL` from the environment. If it is not set, ask the user for
@@ -81,6 +81,32 @@ telemetry-collector digest --app x --json                        # raw, for prog
   as more urgent than an older one with a bigger count.
 - Feedback (`kind: feedback`) never coalesces, so ten similar entries really are ten
   people. That is a signal, not duplication.
+
+---
+
+## Workflow A2 — what is actually getting used
+
+```sh
+telemetry-collector usage --app <app-id> --since 30d
+telemetry-collector usage --app <app-id> --groupBy release   # did 2.0 change behaviour?
+telemetry-collector usage --app <app-id> --event gate.opened --interval hour
+```
+
+**Read these as estimates, and say so when you report them.** Analytics Engine samples
+above roughly 100 events/second per app; the queries weight by the recorded sample
+rate, so totals are statistically accurate but not exact. Never present them as a
+count that reconciles with anything, and never compute a percentage to two decimals
+off them.
+
+Two more things that will mislead you if you forget them:
+
+- **Counts can be inflated by anyone.** The ingest key is public, so a usage number is
+  a lower-bound-ish signal about your own app, not a trustworthy metric about the
+  world. Errors have the same property but you notice, because you read them.
+- **Absence is not evidence.** Usage is shed before errors when the account is over
+  budget, so a flat line may mean "nobody used it" _or_ "the collector stopped
+  accepting". Check the budget level on the admin overview before concluding a
+  feature is dead.
 
 ---
 
@@ -158,7 +184,24 @@ installNodeHandlers(client);
 Initialise as early as possible — before the app's own imports run, or errors during
 startup are not captured.
 
-### 4. Feedback, if the app has users
+### 4. Usage tracking, if you want to know what gets used
+
+```ts
+client.track('gate.opened', { dims: { method: 'app' } });
+client.track('session.duration', { value: seconds });
+```
+
+Batched automatically and flushed on `pagehide`; `track()` never awaits and never
+throws. From a shell or CI: `telemetry-collector track --key $KEY ci.deploy
+--dim.branch=master`.
+
+Naming matters more than it looks — the event name is the grouping key, so keep a
+small stable vocabulary (`noun.verb`, lowercase, dotted). Do **not** put an id or a
+timestamp in the event name; that shatters one series into thousands. Put varying
+parts in `dims`, and keep those low-cardinality too (`method`, `source`, `result` —
+not `user_id`).
+
+### 5. Feedback, if the app has users
 
 ```ts
 import { captureScreenshot } from '@cinderblock/telemetry-collector/browser';
@@ -173,7 +216,7 @@ await client.sendFeedback({
 bundles none deliberately. `mode: 'display'` is pixel-exact but needs a user gesture
 and shows a picker, so only use it from a button the user pressed.
 
-### 5. Anything not JavaScript
+### 6. Anything not JavaScript
 
 There is no SDK to install. One HTTP call is the whole protocol:
 
@@ -199,6 +242,11 @@ signs automatically when `TELEMETRY_COLLECTOR_APP_SECRET` is present.
   attempt still costs the app's daily quota. Report once per distinct failure.
 - **Don't put an app id with a dot in it** anywhere. Key parsing splits on the first
   dot for the app and the last for the MAC.
+- **Don't put an id, a timestamp or a path into a usage event name.** It is the
+  grouping key; high cardinality there makes the data useless and is the single most
+  common analytics mistake. `page.view` with `dims: {route: '/gate'}`, never
+  `page.view./gate/42`.
+- **Don't quote usage numbers as exact.** They are sampled estimates.
 - **Don't hardcode a backend hostname** in a project you are wiring up, and don't
   copy one out of another project. It goes in that project's env/CI config.
 - **Don't treat a 429 as a bug.** It means the app's daily quota or the account budget

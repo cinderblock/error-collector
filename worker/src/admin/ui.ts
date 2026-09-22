@@ -31,6 +31,11 @@ const STYLES = `
   --ok: #1f7a4d;
   --warn: #9a6400;
   --bad: #b3261e;
+  /* Chart ink is its own token, not --accent: marks carry identity, text wears text
+     colours. Both modes validated against their real surface with the palette
+     checker (lightness band, chroma floor, 3:1 contrast) rather than eyeballed. */
+  --chart: #2b6cb0;
+  --grid: #e8eaee;
   --radius: 10px;
 }
 @media (prefers-color-scheme: dark) {
@@ -44,6 +49,10 @@ const STYLES = `
     --ok: #63c08c;
     --warn: #e0b054;
     --bad: #f08379;
+    /* Selected for the dark surface, not flipped from light: the light accent
+       measures chroma 0.091 on #1c1f25, i.e. it reads grey. */
+    --chart: #3d8ff5;
+    --grid: #2c313a;
   }
 }
 * { box-sizing: border-box; }
@@ -127,6 +136,18 @@ th { color: var(--muted); font-weight: 550; }
 .notice.bad { border-color: var(--bad); }
 .empty { color: var(--muted); padding: 22px 0; text-align: center; }
 details > summary { cursor: pointer; color: var(--accent); }
+/* Charts. Marks are thin, gaps are surface-coloured, axes are recessive. */
+.chart { width: 100%; height: auto; display: block; }
+.chart .bar { fill: var(--chart); }
+.chart .axis { stroke: var(--grid); stroke-width: 1; }
+.chart .tick { fill: var(--muted); font-size: 10px; }
+.chart .peak { fill: var(--text); font-size: 10px; font-weight: 600; }
+.hbar { display: grid; grid-template-columns: minmax(0, 12rem) 1fr auto; gap: 8px; align-items: center; margin: 6px 0; }
+.hbar .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.88rem; }
+.hbar .track { background: var(--grid); border-radius: 4px; height: 10px; }
+.hbar .fill { background: var(--chart); border-radius: 4px; height: 100%; }
+.hbar .num { font-variant-numeric: tabular-nums; font-size: 0.85rem; color: var(--muted); }
+
 @media (max-width: 560px) {
   main { padding: 14px 12px 56px; }
   th:nth-child(n + 4), td:nth-child(n + 4) { display: none; }
@@ -145,6 +166,7 @@ export function layout({ title, authed = true, body, head = '' }: LayoutOptions)
     ? `<nav>
          <a href="/">Overview</a>
          <a href="/issues">Issues</a>
+         <a href="/usage">Usage</a>
          <a href="/apps">Apps</a>
          <a href="/settings">Settings</a>
        </nav>`
@@ -213,6 +235,87 @@ export function count(value: number): string {
   if (value < 1000) return String(value);
   if (value < 1_000_000) return `${(value / 1000).toFixed(value < 10_000 ? 1 : 0)}k`;
   return `${(value / 1_000_000).toFixed(1)}M`;
+}
+
+/**
+ * A time-series bar chart.
+ *
+ * Single series, so no legend — the heading names it. Bars are separated by a 2px
+ * surface gap and have 4px rounded tops anchored to the baseline.
+ *
+ * **No hover tooltip, deliberately**, which is a departure from the usual advice to
+ * add one. Hover is invisible on touch and this gets read from a phone. The values
+ * are instead reachable without hovering: the axis carries the maximum, the tallest
+ * bar is directly labelled, and the caller renders a table underneath — which is the
+ * accessible fallback a chart is supposed to have anyway, so making it the primary
+ * route costs nothing.
+ */
+export function barChart(points: { label: string; value: number }[], height = 120): string {
+  if (points.length === 0) return `<div class="empty">No data in this window.</div>`;
+
+  const width = 720;
+  const padBottom = 16;
+  const plot = height - padBottom;
+  const peak = Math.max(...points.map(point => point.value), 1);
+  const slot = width / points.length;
+  const gap = points.length > 120 ? 0 : 2;
+  // Capped, and centred in its slot. Without a cap a three-bucket window draws
+  // 240px-wide slabs that read as a colour-blocked background rather than a chart.
+  const barWidth = Math.min(48, Math.max(1, slot - gap));
+  const inset = (slot - barWidth) / 2;
+  const radius = Math.min(4, barWidth / 2);
+
+  const peakIndex = points.reduce((best, point, i) => (point.value > points[best]!.value ? i : best), 0);
+
+  const bars = points
+    .map((point, i) => {
+      const barHeight = Math.max(point.value > 0 ? 1 : 0, (point.value / peak) * plot);
+      const x = i * slot + inset;
+      const y = plot - barHeight;
+      if (barHeight <= 0) return '';
+
+      const r = Math.min(radius, barHeight);
+      // Rounded at the data end only; square where it meets the baseline.
+      return `<path class="bar" d="M${x.toFixed(1)} ${(y + barHeight).toFixed(1)} L${x.toFixed(1)} ${(y + r).toFixed(1)} Q${x.toFixed(1)} ${y.toFixed(1)} ${(x + r).toFixed(1)} ${y.toFixed(1)} L${(x + barWidth - r).toFixed(1)} ${y.toFixed(1)} Q${(x + barWidth).toFixed(1)} ${y.toFixed(1)} ${(x + barWidth).toFixed(1)} ${(y + r).toFixed(1)} L${(x + barWidth).toFixed(1)} ${(y + barHeight).toFixed(1)} Z"/>`;
+    })
+    .join('');
+
+  const first = points[0]?.label ?? '';
+  const last = points.at(-1)?.label ?? '';
+  const peakPoint = points[peakIndex]!;
+  // Anchored to the middle of the bar it describes, not the left edge of its slot —
+  // with capped, centred bars those are far apart on a short window.
+  const peakCentre = peakIndex * slot + inset + barWidth / 2;
+  const peakX = Math.min(width - 4, Math.max(36, peakCentre));
+
+  const described =
+    points.length === 1
+      ? `1 bucket at ${first}; peak ${count(peak)}`
+      : `${points.length} buckets from ${first} to ${last}; peak ${count(peak)}`;
+
+  return `<svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(described)}">
+    ${bars}
+    <line class="axis" x1="0" y1="${plot}" x2="${width}" y2="${plot}"/>
+    <text class="peak" x="${peakX.toFixed(0)}" y="10" text-anchor="middle">peak ${escapeHtml(count(peakPoint.value))}</text>
+    <text class="tick" x="0" y="${height - 3}">${escapeHtml(first)}</text>
+    ${last && last !== first ? `<text class="tick" x="${width}" y="${height - 3}" text-anchor="end">${escapeHtml(last)}</text>` : ''}
+  </svg>`;
+}
+
+/** Horizontal magnitude bars with the number always beside them, never on hover. */
+export function rankedBars(rows: { key: string; value: number }[], render: (value: number) => string): string {
+  if (rows.length === 0) return `<div class="empty">Nothing recorded yet.</div>`;
+  const peak = Math.max(...rows.map(row => row.value), 1);
+
+  return rows
+    .map(
+      row => `<div class="hbar">
+        <span class="name">${escapeHtml(row.key || '(none)')}</span>
+        <span class="track"><span class="fill" style="width: ${((row.value / peak) * 100).toFixed(1)}%"></span></span>
+        <span class="num">${escapeHtml(render(row.value))}</span>
+      </div>`,
+    )
+    .join('');
 }
 
 /** A labelled usage bar. The numbers are always visible — nothing hides in a hover. */

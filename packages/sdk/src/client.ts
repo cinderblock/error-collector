@@ -12,11 +12,13 @@
  */
 
 import {
+  MAX_EVENTS_PER_REQUEST,
   signReport,
   type Breadcrumb,
   type Level,
   type ReportPayload,
   type ReportUser,
+  type UsageEvent,
 } from '@cinderblock/telemetry-collector-core';
 import { exceptionChain, parseStack } from './stack.js';
 
@@ -46,6 +48,12 @@ export interface InitOptions {
   maxBreadcrumbs?: number;
   /** Return `null` to drop an event, or a modified copy to scrub it. */
   beforeSend?: (payload: ReportPayload) => ReportPayload | null;
+  /**
+   * How long to hold usage events before sending them as a batch. A session emits
+   * many; one request each would waste the rate limit and the battery. Set to 0 to
+   * send each immediately, which is mainly useful in tests.
+   */
+  usageFlushMs?: number;
   debug?: boolean;
 }
 
@@ -58,6 +66,7 @@ export interface CaptureOptions {
 }
 
 const DEFAULT_MAX_BREADCRUMBS = 50;
+const DEFAULT_USAGE_FLUSH_MS = 5_000;
 
 export class Client {
   readonly options: InitOptions;
@@ -66,6 +75,9 @@ export class Client {
   private user: ReportUser | undefined;
   private tags: Record<string, string>;
   private sending = false;
+  private usageQueue: UsageEvent[] = [];
+  private usageTimer: ReturnType<typeof setTimeout> | undefined;
+  private unloadHooked = false;
 
   constructor(options: InitOptions) {
     if (!options.endpoint?.trim()) {
@@ -85,6 +97,10 @@ export class Client {
 
   get url(): string {
     return `${this.endpoint}/i/${this.options.ingestKey}`;
+  }
+
+  get usageUrl(): string {
+    return `${this.endpoint}/u/${this.options.ingestKey}`;
   }
 
   setUser(user: ReportUser | undefined): void {
@@ -131,6 +147,92 @@ export class Client {
       { user: feedback.user },
       feedback.screenshot,
     );
+  }
+
+  // -------------------------------------------------------------------------
+  // Usage
+  // -------------------------------------------------------------------------
+
+  /**
+   * Records a usage event. Queued and sent as a batch.
+   *
+   * Never awaits and never throws — usage is the least important thing this library
+   * does, and it must not be able to slow down or break the app it is measuring.
+   */
+  track(event: string, options: { value?: number; dims?: Record<string, string> } = {}): void {
+    try {
+      this.usageQueue.push({ event, value: options.value, dims: options.dims });
+
+      // Send early rather than drop when a burst fills the batch.
+      if (this.usageQueue.length >= MAX_EVENTS_PER_REQUEST) {
+        void this.flushUsage();
+        return;
+      }
+
+      const wait = this.options.usageFlushMs ?? DEFAULT_USAGE_FLUSH_MS;
+      if (wait <= 0) {
+        void this.flushUsage();
+        return;
+      }
+
+      this.hookUnload();
+      this.usageTimer ??= setTimeout(() => {
+        this.usageTimer = undefined;
+        void this.flushUsage();
+      }, wait);
+      // Do not hold a Node process open just to report a pageview.
+      (this.usageTimer as { unref?: () => void }).unref?.();
+    } catch (error) {
+      if (this.options.debug) console.error('[telemetry-collector] track failed:', error);
+    }
+  }
+
+  /** Sends anything queued. Safe to call at any time, including when empty. */
+  async flushUsage(): Promise<void> {
+    if (this.usageTimer !== undefined) {
+      clearTimeout(this.usageTimer);
+      this.usageTimer = undefined;
+    }
+
+    const events = this.usageQueue.splice(0, this.usageQueue.length);
+    if (events.length === 0) return;
+
+    try {
+      const body = JSON.stringify({
+        events,
+        release: this.options.release,
+        environment: this.options.environment,
+      });
+      const headers: Record<string, string> = { 'content-type': 'application/json' };
+
+      if (this.options.appSecret) {
+        const timestamp = Math.floor(Date.now() / 1000);
+        headers['x-report-signature'] = await signReport(this.options.appSecret, timestamp, body);
+        headers['x-report-timestamp'] = String(timestamp);
+      }
+
+      await fetch(this.usageUrl, { method: 'POST', headers, body, keepalive: body.length < 60_000 });
+    } catch (error) {
+      // Deliberately not requeued. A retry loop against a failing endpoint would
+      // grow unboundedly in memory and hammer a backend that is already unwell, to
+      // recover data whose entire value is being approximately right in aggregate.
+      if (this.options.debug) console.error('[telemetry-collector] usage flush failed:', error);
+    }
+  }
+
+  /** Flush queued usage when the page goes away — which is when it usually does. */
+  private hookUnload(): void {
+    if (this.unloadHooked) return;
+    if (typeof globalThis.addEventListener !== 'function' || typeof document === 'undefined') return;
+
+    this.unloadHooked = true;
+    // `pagehide`, not `unload`: `unload` is unreliable and blocks the bfcache, and
+    // `visibilitychange` to hidden is the only signal some mobile browsers give at all.
+    const flush = () => void this.flushUsage();
+    globalThis.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') flush();
+    });
   }
 
   private base(): ReportPayload {
@@ -249,4 +351,12 @@ export function setUser(user: ReportUser | undefined): void {
 
 export function setTags(tags: Record<string, string>): void {
   current?.setTags(tags);
+}
+
+export function track(event: string, options?: { value?: number; dims?: Record<string, string> }): void {
+  current?.track(event, options);
+}
+
+export function flushUsage(): Promise<void> {
+  return current?.flushUsage() ?? Promise.resolve();
 }

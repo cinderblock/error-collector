@@ -10,6 +10,14 @@
 
 import type { Env } from '../env.js';
 import { nowSeconds } from '../env.js';
+import { AnalyticsUnavailableError } from '../analytics/sql.js';
+import {
+  fetchBreakdown,
+  fetchSeries,
+  parseGroupBy,
+  parseInterval,
+  type UsageQuery,
+} from '../analytics/usage-queries.js';
 import { authenticateReadToken, scopeAllows, scopeFilter, type AuthedToken } from './auth.js';
 
 const MAX_LIMIT = 200;
@@ -275,6 +283,10 @@ export async function handleReadApi(request: Request, env: Env, path: string): P
     return digest(env, url, token, now);
   }
 
+  if (path === '/api/usage') {
+    return usage(env, url, token, now);
+  }
+
   if (path.startsWith('/api/blob/')) {
     return serveBlob(env, token, decodeURIComponent(path.slice('/api/blob/'.length)));
   }
@@ -335,6 +347,61 @@ async function digest(env: Env, url: URL, token: AuthedToken, now: number): Prom
       })),
     })),
   });
+}
+
+/**
+ * Usage analytics, read from Analytics Engine.
+ *
+ * Note the numbers here are *estimates*: AE samples above roughly 100 data points
+ * per second per app and records the inverse rate, which the queries weight by. They
+ * are statistically accurate, not exact — good for "how much is this used", wrong
+ * for anything you would bill on. Said in the response so a consumer cannot mistake
+ * one for the other.
+ */
+async function usage(env: Env, url: URL, token: AuthedToken, now: number): Promise<Response> {
+  const app = url.searchParams.get('app');
+  if (!app) return json({ ok: false, error: '`app` is required' }, 400);
+  if (!scopeAllows(token.scope, app)) return json({ ok: false, error: 'not found' }, 404);
+
+  const since = parseSince(url.searchParams.get('since'), now) ?? now - 7 * 86_400;
+  const interval = parseInterval(url.searchParams.get('interval'));
+  const groupBy = parseGroupBy(url.searchParams.get('groupBy'));
+
+  const query: UsageQuery = {
+    dataset: env.USAGE_DATASET,
+    appId: app,
+    since,
+    event: url.searchParams.get('event'),
+    channel: url.searchParams.get('channel'),
+    release: url.searchParams.get('release'),
+  };
+
+  try {
+    const [series, breakdown] = await Promise.all([
+      fetchSeries(env, query, interval),
+      fetchBreakdown(env, query, groupBy, clampLimit(url.searchParams.get('limit'))),
+    ]);
+
+    return json({
+      ok: true,
+      app,
+      since,
+      interval,
+      group_by: groupBy,
+      sampled: true,
+      note: 'Totals are weighted by Analytics Engine’s sample interval: statistically accurate, not exact.',
+      series,
+      breakdown,
+    });
+  } catch (error) {
+    if (error instanceof AnalyticsUnavailableError) {
+      // Writing usage works without the account token; only reading needs it. A
+      // fresh deploy legitimately has one and not the other, so this is a
+      // configuration answer rather than a server error.
+      return json({ ok: false, error: error.message }, 501);
+    }
+    throw error;
+  }
 }
 
 async function serveBlob(env: Env, token: AuthedToken, key: string): Promise<Response> {

@@ -316,7 +316,7 @@ comfortable to live with. Cheap to implement, large practical payoff.
 - Analytics Engine dataset `telemetry_events` — indexed by app, blobs: channel, fingerprint,
   level, kind; doubles: 1.
 
-## Usage tracking (proposed, not built)
+## Usage tracking (built 2026-09-21)
 
 Asked 2026-09-21: can this collect product usage too? **Yes — and Analytics Engine,
 already wired in, is precisely a usage-analytics store.** But one thing is
@@ -378,11 +378,33 @@ Cheaper per event than the error path by a wide margin.
   events; nothing covers browser events. Acceptable for "roughly how much do my own
   apps get used", not for a decision with money attached.
 
-### Open question
+### As built
 
-If it does usage as well as errors, "telemetry-collector" undersells it — and the repo,
-the package names and the hostname are all cheap to change now and annoying later.
-Worth settling before this is built.
+Matches the design above, with these decisions made during implementation:
+
+- **Separate AE dataset** (`telemetry_usage`), not a discriminator column in the error
+  dataset. AE has no column names — only `blob1..blob20` — so two record shapes in one
+  dataset means every query has to remember to exclude the other, and the failure mode
+  when one forgets is silently blended numbers rather than an error.
+- **The positional field layout lives in one module** (`core/src/usage.ts`) used by
+  both the writer and the query builder, for the same reason: two matching argument
+  lists in two files drift, and the symptom is mis-attributed data.
+- **Usage reads the governor level from KV, not D1.** The error path reads
+  `usage_daily` directly because staleness during a flood is expensive and D1 writes
+  are what is being protected. Usage has no D1 writes to protect, so a D1 round trip
+  per pageview would be the most expensive thing in an otherwise free path.
+- **Usage is shed at `issues-only` and beyond**, well before errors are.
+- **SQL escaping is the security boundary.** The AE SQL API takes raw text with no
+  bind parameters, and event names arrive from query strings. All quoting goes through
+  one `lit()` function, tested by round-tripping hostile inputs through a parser that
+  mimics ClickHouse rather than by regex — a regex cannot tell an escaped backslash
+  from an escaping one and calls correct output wrong.
+- Two bugs the tests caught: `parseGroupBy` used `in`, which walks the prototype chain,
+  so `__proto__` and `toString` passed the allowlist and indexed into
+  `Object.prototype`; and the bar chart drew 240px slabs for short windows.
+
+The naming question was settled first — renamed from `error-collector` before this
+was built, precisely so the name would not write a cheque the code had not cashed.
 
 ## Deliverables beyond the backend
 
@@ -496,5 +518,9 @@ Things that were not obvious going in, recorded so they are not re-derived:
       `AUTH_SECRET`, `BOOTSTRAP_TOKEN`.
 - [ ] First deploy, then enrol the first passkey with the bootstrap token.
 - [ ] Claim the npm scope and publish `0.0.0` placeholders, then release from CI.
+- [x] 2026-09-21 — Usage tracking: `/u/` ingest (AE-only, zero D1), SQL API read path,
+      `/api/usage`, admin tab with validated charts, `track()` in the SDK, `usage` and
+      `track` in the CLI, and the daily rollup that beats AE's 90-day retention.
+      216 tests.
 - [ ] Phase 2: Sentry envelope dialect.
 - [ ] Wire the first real project (candidate: Gate Manager) end to end.

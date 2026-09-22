@@ -30,6 +30,7 @@ RP_NAME = "telemetry-collector"
 OWNER_ID = "cameron"
 OWNER_NAME = "cameron"
 AE_DATASET = "telemetry_events"
+USAGE_DATASET = "telemetry_usage"
 
 # Local dev only — the ops sync system manages these for production.
 [[d1_databases]]
@@ -48,6 +49,13 @@ bucket_name = "telemetry-collector-blobs"
 [[analytics_engine_datasets]]
 binding = "AE"
 dataset = "telemetry_events"
+
+# Usage events keep their own dataset — a different record shape in the same one
+# would mean every query had to exclude the other, and forgetting blends the numbers
+# silently. AE datasets are created implicitly on first write and cost nothing.
+[[analytics_engine_datasets]]
+binding = "USAGE"
+dataset = "telemetry_usage"
 
 # Cheap first line of defence on the world-open ingest endpoint. Deliberately
 # generous — a genuinely crashing app is *supposed* to be loud, and the budget

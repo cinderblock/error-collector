@@ -15,6 +15,8 @@ Design notes and the reasoning behind the architecture:
 - **Coalescing.** Ten thousand copies of one crash become one issue with a count, not
   ten thousand rows.
 - **Screenshots and attachments** in R2, automatic or user-provided.
+- **Usage analytics** — same app, same key, one extra call. Writes one Analytics
+  Engine data point and touches D1 not at all.
 - **A dataset API for coding agents**, behind a scoped read token.
 - **Admin views** behind a passkey.
 
@@ -121,6 +123,47 @@ curl -X POST "$URL/i/$INGEST_KEY" \
   -H 'content-type: application/json' \
   -d '{"level":"error","message":"the relay stopped responding","release":"1.4.2"}'
 ```
+
+## Usage tracking
+
+```ts
+client.track('gate.opened', { dims: { method: 'app' } });
+client.track('session.duration', { value: 42.5 });
+```
+
+Events are batched and flushed on a timer and on `pagehide`. `track()` never awaits
+and never throws — usage is the least important thing the library does and must not
+be able to slow down or break the app it is measuring.
+
+From anything else:
+
+```sh
+curl -X POST "$URL/u/$INGEST_KEY" -H 'content-type: application/json'   -d '{"events":[{"event":"ci.deploy","dims":{"branch":"master"}}],"release":"2.0.0"}'
+```
+
+**The rule that makes this affordable: a usage event never touches D1.** The error
+path costs ~2 row writes per report, which is right for errors and ruinous for
+pageviews — and those writes would land in the very counters the budget governor
+grades error collection against, so tracking usage would throttle crash reporting.
+
+Consequences worth knowing before you rely on the numbers:
+
+- **They are estimates.** AE samples above roughly 100 events/second per app and
+  records the rate; queries weight by it. Statistically accurate, not exact — don't
+  reconcile them against something that has to balance.
+- **Aggregate only.** You cannot retrieve an individual usage event.
+- **Usage is shed first.** When the account is over budget, usage stops being
+  accepted well before errors do. A dropped pageview costs a rounding error; a
+  dropped crash costs the bug.
+- **A world-open endpoint can have its counts inflated** by anyone who reads the key
+  out of your bundle. For errors that is tolerable — you triage them and notice.
+  Inflated usage is _silently_ wrong.
+- **AE keeps 90 days**, so a daily cron rolls per-(app, event, day) totals into D1.
+  That cannot be backfilled, which is why it ships with the feature.
+
+Reading usage needs an account API token (`CF_ANALYTICS_TOKEN` + `CF_ACCOUNT_ID`),
+because AE is _written_ through a binding but _queried_ over HTTPS. Writing works
+without one; the admin UI says so rather than erroring.
 
 ## Reading the data
 

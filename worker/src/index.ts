@@ -3,6 +3,7 @@ import { handleAdmin, isAdminPath } from './admin/routes.js';
 import { runScheduled } from './cron.js';
 import type { Env } from './env.js';
 import { handleIngest, preflight } from './ingest/native.js';
+import { handleUsage, usagePreflight } from './ingest/usage.js';
 
 function notFound(): Response {
   return new Response(JSON.stringify({ ok: false, error: 'not found' }), {
@@ -30,6 +31,18 @@ async function route(request: Request, env: Env): Promise<Response> {
       });
     }
     return handleIngest(request, env, decodeURIComponent(path.slice('/i/'.length)));
+  }
+
+  // Usage: the other hot path, and the cheaper one — one AE data point, no D1.
+  if (path.startsWith('/u/')) {
+    if (request.method === 'OPTIONS') return usagePreflight();
+    if (request.method !== 'POST') {
+      return new Response(JSON.stringify({ ok: false, error: 'use POST' }), {
+        status: 405,
+        headers: { 'content-type': 'application/json; charset=utf-8', allow: 'POST, OPTIONS' },
+      });
+    }
+    return handleUsage(request, env, decodeURIComponent(path.slice('/u/'.length)));
   }
 
   if (path.startsWith('/api/')) {

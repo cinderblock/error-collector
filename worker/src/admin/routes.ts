@@ -34,6 +34,7 @@ import {
   settingsPage,
   updateIssueStatus,
 } from './pages.js';
+import { usagePage } from './usage-page.js';
 
 /** Reachable without a session. Everything else redirects to /login. */
 const PUBLIC_PATHS = new Set([
@@ -47,7 +48,14 @@ const PUBLIC_PATHS = new Set([
 
 export function isAdminPath(path: string): boolean {
   if (PUBLIC_PATHS.has(path)) return true;
-  if (path === '/' || path === '/issues' || path === '/apps' || path === '/settings' || path === '/logout') {
+  if (
+    path === '/' ||
+    path === '/issues' ||
+    path === '/usage' ||
+    path === '/apps' ||
+    path === '/settings' ||
+    path === '/logout'
+  ) {
     return true;
   }
   return (
@@ -132,6 +140,8 @@ export async function handleAdmin(request: Request, env: Env, url: URL): Promise
       return overviewPage(env);
     case '/issues':
       return issuesPage(env, url);
+    case '/usage':
+      return usagePage(env, url);
     case '/apps':
       return appsPage(env);
     case '/settings':
