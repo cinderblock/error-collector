@@ -510,12 +510,23 @@ Things that were not obvious going in, recorded so they are not re-derived:
 - [x] 2026-09-21 — Staged the ops config (`cloudflare/config/workers/telemetry-collector.yaml`
       plus `plans/telemetry-collector-cloudflare.md`). Dry-run: 2 resources to create, 0
       updates, 0 deletes. Not committed, not applied.
-- [ ] **Next:** apply the ops change — creates the D1 database and KV namespace —
-      then create the R2 bucket by hand (the sync system does not manage R2, and
-      wrangler will not create one). Needs explicit per-change authorization.
-- [ ] Set repo secrets/variables: `CLOUDFLARE_API_TOKEN`, `D1_DATABASE_ID`,
-      `KV_NAMESPACE_ID`, `CLOUDFLARE_ACCOUNT_ID`; worker secrets `SECRET_KEK`,
-      `AUTH_SECRET`, `BOOTSTRAP_TOKEN`.
+- [x] 2026-09-22 — Applied the ops change: `TELEMETRY_DB` (D1) and `TELEMETRY_KV` (KV)
+      now exist. The apply happens in ops CI, not locally — the workstation's
+      Cloudflare token is read-only on every permission, which is what makes "never
+      deploy manually" a property of the credentials rather than of anyone's
+      discipline. `sync-verify` reported 0/0/0 afterwards. The ids are recorded in the
+      ops repo (private), not here.
+- [ ] **Next:** the R2 bucket — `wrangler r2 bucket create telemetry-collector-blobs`.
+      Needs an edit-capable token, so it cannot be done from this machine's ops
+      credentials. Nothing deploys until it exists; `wrangler deploy` fails on a
+      missing bucket rather than creating one.
+- [ ] Set repo variables `D1_DATABASE_ID`, `KV_NAMESPACE_ID`, `CLOUDFLARE_ACCOUNT_ID`
+      (ids are in the ops plan) and the `CLOUDFLARE_API_TOKEN` secret. Until
+      `D1_DATABASE_ID` is set the Deploy workflow skips with a notice rather than
+      failing, which is the intended pre-setup state.
+- [ ] Worker secrets once deployed: `SECRET_KEK`, `AUTH_SECRET`, `BOOTSTRAP_TOKEN`,
+      and `CF_ANALYTICS_TOKEN` if usage charts are wanted (writing usage needs no
+      token; only reading does).
 - [ ] First deploy, then enrol the first passkey with the bootstrap token.
 - [ ] Claim the npm scope and publish `0.0.0` placeholders, then release from CI.
 - [x] 2026-09-21 — Usage tracking: `/u/` ingest (AE-only, zero D1), SQL API read path,
