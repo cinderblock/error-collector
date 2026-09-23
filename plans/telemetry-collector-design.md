@@ -89,6 +89,26 @@ Settled 2026-09-21:
   (works with no permission prompt); `getDisplayMedia` is opt-in for pixel-accurate
   captures. Decided without asking — reversible, and the backend is identical either way.
 
+Settled 2026-09-23:
+
+- **Workers Builds preview builds are OFF.** A preview is a version of the _same_
+  Worker, so it inherits the bindings in `wrangler.toml` — the production D1 database,
+  KV namespace and R2 bucket. There is no separate preview database unless one is
+  created. That makes every branch push run unreleased code against real telemetry
+  data: a branch mid-way through a migration previews against a schema that does not
+  have its columns yet, and worse, a branch with a changed fingerprint or a new field
+  writes rows production then has to live with. The world-open ingest endpoint means
+  "something can write to the database" is not itself new — what is new is one's own
+  half-finished code doing it silently on every push.
+
+  If previews are wanted later, the right shape is `[env.preview]` in `wrangler.toml`
+  with its own `database_id` and KV id, provisioned by ops like the production pair.
+  That is a real isolation boundary. Turning previews off now costs nothing toward it.
+
+  Unverified and worth checking before ever enabling them: whether cron triggers fire
+  for preview versions or only for the active deployment. The daily maintenance cron
+  _deletes_ data, so a second copy of the retention sweep would not be a small problem.
+
 ## Budget governor
 
 Requirement: run correctly on Workers Free _or_ Paid, auto-adapt, and let me tune the
