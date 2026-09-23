@@ -296,47 +296,50 @@ bun run check      # typecheck + test + format
 
 ## Deployment
 
-Deploys happen in **CI only** — never `wrangler deploy` by hand, and npm packages are
-published only by the release workflow, with provenance. A `prepublishOnly` guard makes
-a local publish fail rather than merely discouraging it.
+**This repository holds no deployment credentials, and its CI cannot deploy anything.**
+That is deliberate and worth stating plainly, because the obvious design gets it wrong:
+the repo is public, so a deploy job here would run `bun install` over a public
+dependency tree in the same step as a live Cloudflare token. One malicious postinstall
+anywhere in that tree would inherit the account.
 
-**No hostname is committed anywhere in this repo.** It is self-hosted software, so
-where a given copy lives is a property of that deployment, not of the source: the SDK
-and CLI require an `endpoint`, the smoke test reads a `DEPLOY_URL` repo variable, and
-the WebAuthn relying party is derived from the request URL at runtime. My own
-deployment's custom domain and D1/R2/KV/AE bindings are declared in a separate
-infrastructure repo.
+So the credential direction is reversed. **Cloudflare Workers Builds** connects to this
+repository through a GitHub App, pulls the code, builds it and deploys it. Nothing
+Cloudflare-shaped is stored here. The only secret this repo holds is `NPM_TOKEN`, for
+publishing the SDK packages — which is its actual job.
 
-Resources the deploy needs to exist first: a D1 database, a KV namespace, an R2 bucket
-(wrangler will not create one for you), and the Worker itself — `wrangler deploy` can
-upload into a Worker that exists but a token scoped to `Workers: Editor` cannot create
-one. The Analytics Engine dataset needs nothing; it springs into existence on first
-write.
+Deploys are **tag-triggered**. A push to `master` builds nothing; tagging is what ships:
 
-### What the deploy requires
+```sh
+git tag v0.1.0 && git push --tags
+```
 
-All of these, or the workflow fails. It does not skip, and it does not warn:
+**No hostname or resource id is committed anywhere in this repo.** It is self-hosted
+software, so where a copy runs and which database it writes to are properties of that
+deployment, not of the source: the SDK and CLI require an explicit `endpoint`, and the
+WebAuthn relying party is derived from the request URL at runtime.
 
-| Name                    | Kind     | Shape                                  |
-| ----------------------- | -------- | -------------------------------------- |
-| `CLOUDFLARE_API_TOKEN`  | secret   | verified against Cloudflare before use |
-| `CLOUDFLARE_ACCOUNT_ID` | variable | 32 hex digits                          |
-| `KV_NAMESPACE_ID`       | variable | 32 hex digits                          |
-| `D1_DATABASE_ID`        | variable | a UUID                                 |
-| `DEPLOY_URL`            | variable | `https://host`, no trailing slash      |
+### Self-hosting this
 
-The token needs **Workers: Editor**, **D1: Edit**, **Workers KV Storage: Read** and
-**Workers R2 Storage: Read**, scoped to your account with no zone resources. Editor
-rather than Admin is deliberate: it can deploy into this Worker and cannot create or
-delete any other.
+Create a D1 database, a KV namespace, an R2 bucket (wrangler will not create one for
+you) and the Worker itself. The Analytics Engine datasets need nothing — they spring
+into existence on first write.
 
-An earlier version of this workflow skipped the deploy with a notice when
-`D1_DATABASE_ID` was unset, so that an unconfigured fork would not show a red X. That
-traded a true signal for a comfortable one — the run reported success having deployed
-nothing. Missing or malformed configuration now fails, listing every problem at once,
-before anything is mutated. `DEPLOY_URL` is required for the same reason: without it
-the deploy cannot be smoke-tested, and an unverified deploy claiming success is the
-same lie in a different place.
+`worker/wrangler.toml` ships `"local"` placeholders so `wrangler dev` works untouched.
+Your pipeline supplies the real ids as **build environment variables** and runs:
+
+| Stage  | Command                                                           |
+| ------ | ----------------------------------------------------------------- |
+| Build  | `bun install && bun run build && bun scripts/resolve-bindings.ts` |
+| Deploy | `bunx wrangler deploy` (working directory `worker/`)              |
+
+with `D1_DATABASE_ID` and `KV_NAMESPACE_ID` set. `resolve-bindings.ts` **fails** when
+either is missing or malformed rather than substituting nothing — a Worker bound to a
+database called `local` starts happily and only breaks once traffic arrives, which is
+the exact "green but broken" shape this project exists to catch elsewhere.
+
+Worker secrets are set on the Worker, not here: `SECRET_KEK`, `AUTH_SECRET`,
+`BOOTSTRAP_TOKEN`, and `CF_ACCOUNT_ID` / `CF_ANALYTICS_TOKEN` if you want usage charts.
+They persist across deploys.
 
 ## Repository layout
 

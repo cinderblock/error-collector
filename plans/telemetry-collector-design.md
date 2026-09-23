@@ -540,11 +540,26 @@ Things that were not obvious going in, recorded so they are not re-derived:
       the API token is verified against Cloudflare before migrations run, a binding id
       left as `"local"` is caught, and the smoke test is mandatory rather than
       conditional on `DEPLOY_URL`.
-- [ ] **Next:** set repo variables `D1_DATABASE_ID`, `KV_NAMESPACE_ID`,
-      `CLOUDFLARE_ACCOUNT_ID`, `DEPLOY_URL` (ids are in the ops plan) and the
-      `CLOUDFLARE_API_TOKEN` secret — the latter scoped to Workers: **Editor** (not
-      Admin), D1: Edit, KV + R2: Read, account resources only, no zone resources.
-      The Deploy workflow is red until all five are set.
+- [x] 2026-09-23 — **Deploy workflow deleted; this repo now holds no Cloudflare
+      credential at all.** The previous entry was fixing the wrong layer. The real
+      problem was not that the deploy job skipped green, it was that the job existed:
+      this repo is **public**, and it would have run `bun install` over a public
+      dependency tree in the same step as a live account token. `ops`' own
+      `plans/ops-owned-app-deploys.md` names that as "the everyday risk, not the exotic
+      one" — it was read during this work and wrongly filed as "containers only." No
+      token was ever minted, so nothing leaked; the design was caught before the
+      credential existed.
+- [ ] **Next:** deploy via **Cloudflare Workers Builds**, tag-triggered. Cloudflare
+      pulls the code through a GitHub App, so the credential direction reverses and
+      nothing Cloudflare-shaped is stored here. Remaining: (a) authorise the GitHub App
+      in the Cloudflare dashboard — a one-time manual step that cannot be IaC; (b) ops
+      declares the build trigger, including `D1_DATABASE_ID` / `KV_NAMESPACE_ID` as
+      build env vars so the ids stay out of this public repo; (c) tag a release.
+      See `ops/plans/telemetry-collector-cloudflare.md`.
+- [ ] Settle where D1 migrations run — in the trigger's deploy command (needs
+      Cloudflare's build environment to carry D1 write authority, **unverified**) or in
+      ops, which owns the database and already has the machinery. A deploy whose schema
+      has not migrated fails in a way that looks like an application bug.
 - [ ] Worker secrets once deployed: `SECRET_KEK`, `AUTH_SECRET`, `BOOTSTRAP_TOKEN`,
       and `CF_ANALYTICS_TOKEN` if usage charts are wanted (writing usage needs no
       token; only reading does).
