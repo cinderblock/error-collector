@@ -3,16 +3,22 @@
 A cheap, self-hosted place to collect errors, user feedback and screenshots from
 the apps I'm developing, running entirely on Cloudflare.
 
-**No hostname appears anywhere in this repo.** Where a given copy is deployed is a
-property of that deployment, not of the source — so the SDK and CLI require an
-explicit endpoint, CI reads a `DEPLOY_URL` variable, and the WebAuthn relying party
-is derived from the request URL. My own deployment's hostname and Cloudflare
-resources are recorded in the ops repo (`plans/telemetry-collector-cloudflare.md`).
+**No hostname, resource id or credential appears anywhere in this repo.** Where a given
+copy is deployed is a property of that deployment, not of the source — so the SDK and
+CLI require an explicit endpoint, the D1/KV ids arrive as build environment variables,
+and the WebAuthn relying party is derived from the request URL. My own deployment's
+hostname and Cloudflare resources are recorded in the ops repo
+(`plans/telemetry-collector-cloudflare.md`).
 
-Status: **built and verified locally; not yet deployed.** Every piece below exists
-and has been exercised against a local D1/R2/KV. The remaining work is the ops change
-that creates the Cloudflare resources and the custom domain — which needs its own
-authorization — plus the phase-2 Sentry dialect.
+This repo also holds **no Cloudflare API token and cannot deploy anything**. It is
+public; a deploy job here would run `bun install` over a public dependency tree beside a
+live account credential. Cloudflare Workers Builds pulls the code instead, which
+reverses the credential direction. See "Deployment" in the README.
+
+Status: **built and verified locally; the Cloudflare resources, the Worker and the
+custom domain exist; the code has never been deployed.** `telemetry.tomsawyerlabs.com`
+serves a 503 stub that ops provisioned. Remaining before first traffic: create the
+protected `deploy` branch, let Workers Builds run, and confirm the migrations land.
 
 ## Goal
 
@@ -549,17 +555,27 @@ Things that were not obvious going in, recorded so they are not re-derived:
       one" — it was read during this work and wrongly filed as "containers only." No
       token was ever minted, so nothing leaked; the design was caught before the
       credential existed.
-- [ ] **Next:** deploy via **Cloudflare Workers Builds**, tag-triggered. Cloudflare
-      pulls the code through a GitHub App, so the credential direction reverses and
-      nothing Cloudflare-shaped is stored here. Remaining: (a) authorise the GitHub App
-      in the Cloudflare dashboard — a one-time manual step that cannot be IaC; (b) ops
-      declares the build trigger, including `D1_DATABASE_ID` / `KV_NAMESPACE_ID` as
-      build env vars so the ids stay out of this public repo; (c) tag a release.
-      See `ops/plans/telemetry-collector-cloudflare.md`.
-- [ ] Settle where D1 migrations run — in the trigger's deploy command (needs
-      Cloudflare's build environment to carry D1 write authority, **unverified**) or in
-      ops, which owns the database and already has the machinery. A deploy whose schema
-      has not migrated fails in a way that looks like an application bug.
+- [x] 2026-09-23 — **Cloudflare Workers Builds** connected. Cloudflare pulls the code
+      through a GitHub App, so the credential direction reverses and nothing
+      Cloudflare-shaped is stored here. `D1_DATABASE_ID` and `KV_NAMESPACE_ID` are
+      build environment variables, so the ids stay out of this public repo too.
+      Git tags turned out **not** to be a supported trigger — Workers Builds listens to
+      a branch — so deploys come from a protected `deploy` branch instead.
+- [x] 2026-09-23 — Migrations settled: they run in the **deploy command**, ahead of
+      `wrangler deploy`. That command executes only for the production branch, so no
+      `master` push and no preview build can ever migrate production. Whether
+      Cloudflare's build environment carries D1 write authority is still unverified —
+      the first build answers it and fails loudly if not.
+- [ ] **Next:** create the `deploy` branch, protect it on GitHub requiring `ci.yml`,
+      point Cloudflare's production branch at it, and ship. Workers Builds has no
+      visibility into GitHub Actions, so without the protection a red-CI commit would
+      build and deploy regardless — the branch rule is what makes that impossible.
+- [ ] Once a real deploy has landed: publish `/build-info.json` carrying
+      `WORKERS_CI_COMMIT_SHA`, add this service to the ops uptime worker's
+      `deploySites`, and extend that monitor to also warn when `deploy` falls too far
+      behind `master`. Layer one catches a silently broken pipeline (the
+      arbitraryshit.com failure — 13 skipped pushes, 8-day-old content, 200 OK, no
+      alert); layer two catches work that was never shipped.
 - [ ] Worker secrets once deployed: `SECRET_KEK`, `AUTH_SECRET`, `BOOTSTRAP_TOKEN`,
       and `CF_ANALYTICS_TOKEN` if usage charts are wanted (writing usage needs no
       token; only reading does).

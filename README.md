@@ -307,11 +307,17 @@ repository through a GitHub App, pulls the code, builds it and deploys it. Nothi
 Cloudflare-shaped is stored here. The only secret this repo holds is `NPM_TOKEN`, for
 publishing the SDK packages — which is its actual job.
 
-Deploys are **tag-triggered**. A push to `master` builds nothing; tagging is what ships:
+Deploys come from a dedicated **`deploy` branch**, not from `master`. Landing work on
+`master` ships nothing; moving the branch is what ships:
 
 ```sh
-git tag v0.1.0 && git push --tags
+git push origin master:deploy
 ```
+
+`deploy` is protected on GitHub and requires CI to pass, which is the point: Workers
+Builds has no visibility into GitHub Actions and would happily build and ship a commit
+whose tests were red. Requiring status checks on the branch makes that impossible
+rather than merely discouraged.
 
 **No hostname or resource id is committed anywhere in this repo.** It is self-hosted
 software, so where a copy runs and which database it writes to are properties of that
@@ -337,12 +343,12 @@ either is missing or malformed rather than substituting nothing — a Worker bou
 database called `local` starts happily and only breaks once traffic arrives, which is
 the exact "green but broken" shape this project exists to catch elsewhere.
 
-A push to the production branch ships. Rollback is Cloudflare's own version history
-rather than anything in this repo.
+Set the production branch to `deploy`. Rollback is Cloudflare's version history, or
+moving the branch back.
 
 Migrations run in the deploy command because that command runs only for the production
-branch — preview branches use the preview command, so a preview build can never migrate
-your production database.
+branch — every other branch uses the preview command, so neither a `master` push nor a
+preview build can migrate your production database.
 
 Worker secrets are set on the Worker, not here: `SECRET_KEK`, `AUTH_SECRET`,
 `BOOTSTRAP_TOKEN`, and `CF_ACCOUNT_ID` / `CF_ANALYTICS_TOKEN` if you want usage charts.
