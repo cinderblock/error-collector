@@ -317,13 +317,13 @@ write.
 
 All of these, or the workflow fails. It does not skip, and it does not warn:
 
-| Name                    | Kind     | Shape                                     |
-| ----------------------- | -------- | ----------------------------------------- |
-| `CLOUDFLARE_API_TOKEN`  | secret   | verified against Cloudflare before use    |
-| `CLOUDFLARE_ACCOUNT_ID` | variable | 32 hex digits                             |
-| `KV_NAMESPACE_ID`       | variable | 32 hex digits                             |
-| `D1_DATABASE_ID`        | variable | a UUID                                    |
-| `DEPLOY_URL`            | variable | `https://host`, no trailing slash         |
+| Name                    | Kind     | Shape                                  |
+| ----------------------- | -------- | -------------------------------------- |
+| `CLOUDFLARE_API_TOKEN`  | secret   | verified against Cloudflare before use |
+| `CLOUDFLARE_ACCOUNT_ID` | variable | 32 hex digits                          |
+| `KV_NAMESPACE_ID`       | variable | 32 hex digits                          |
+| `D1_DATABASE_ID`        | variable | a UUID                                 |
+| `DEPLOY_URL`            | variable | `https://host`, no trailing slash      |
 
 The token needs **Workers: Editor**, **D1: Edit**, **Workers KV Storage: Read** and
 **Workers R2 Storage: Read**, scoped to your account with no zone resources. Editor

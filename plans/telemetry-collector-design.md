@@ -521,13 +521,13 @@ Things that were not obvious going in, recorded so they are not re-derived:
       is declarative like D1 and KV. Two bugs found the hard way and both now
       commented in place — the provider must not throw when R2 is unreadable (the
       registry fetches under one `Promise.all`, so it took down DNS, D1, KV and
-      tunnels too), but it *must* throw when a create fails (the orchestrator reads
+      tunnels too), but it _must_ throw when a create fails (the orchestrator reads
       only a thrown error, so collecting instead printed "✓ Created" and went green
       with no bucket).
 - [x] 2026-09-23 — ops provisions the Worker itself (`ops@3961d2b`, applied). Deciding
       this needed the granular Workers permissions: "Editor" can deploy into an
       existing worker but explicitly **cannot create or delete** one. Rather than give
-      this repo Admin on the whole account just so its *first* deploy has somewhere to
+      this repo Admin on the whole account just so its _first_ deploy has somewhere to
       land, ops creates an empty 503 stub and this repo keeps Editor permanently.
       `telemetry.tomsawyerlabs.com` is attached and serving the stub; ops `sync-verify`
       reports in sync. It cost ops no new permission — the sync token already creates
@@ -536,7 +536,7 @@ Things that were not obvious going in, recorded so they are not re-derived:
       instead of skipping green. The old `configured` gate skipped the whole job when
       `D1_DATABASE_ID` was unset, so a run that deployed nothing reported success —
       exactly the false-green this project exists to catch elsewhere. All five values
-      are now checked up front (presence *and* shape, every problem listed at once),
+      are now checked up front (presence _and_ shape, every problem listed at once),
       the API token is verified against Cloudflare before migrations run, a binding id
       left as `"local"` is caught, and the smoke test is mandatory rather than
       conditional on `DEPLOY_URL`.
