@@ -327,15 +327,22 @@ into existence on first write.
 `worker/wrangler.toml` ships `"local"` placeholders so `wrangler dev` works untouched.
 Your pipeline supplies the real ids as **build environment variables** and runs:
 
-| Stage  | Command                                                           |
-| ------ | ----------------------------------------------------------------- |
-| Build  | `bun install && bun run build && bun scripts/resolve-bindings.ts` |
-| Deploy | `bunx wrangler deploy` (working directory `worker/`)              |
+| Stage  | Command                                                                                                                       |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| Build  | `bun install --frozen-lockfile && bun run build && bun scripts/resolve-bindings.ts`                                           |
+| Deploy | `wrangler -c worker/wrangler.toml d1 migrations apply TELEMETRY_DB --remote --yes && wrangler -c worker/wrangler.toml deploy` |
 
 with `D1_DATABASE_ID` and `KV_NAMESPACE_ID` set. `resolve-bindings.ts` **fails** when
 either is missing or malformed rather than substituting nothing — a Worker bound to a
 database called `local` starts happily and only breaks once traffic arrives, which is
 the exact "green but broken" shape this project exists to catch elsewhere.
+
+A push to the production branch ships. Rollback is Cloudflare's own version history
+rather than anything in this repo.
+
+Migrations run in the deploy command because that command runs only for the production
+branch — preview branches use the preview command, so a preview build can never migrate
+your production database.
 
 Worker secrets are set on the Worker, not here: `SECRET_KEK`, `AUTH_SECRET`,
 `BOOTSTRAP_TOKEN`, and `CF_ACCOUNT_ID` / `CF_ANALYTICS_TOKEN` if you want usage charts.
