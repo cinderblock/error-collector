@@ -516,14 +516,35 @@ Things that were not obvious going in, recorded so they are not re-derived:
       deploy manually" a property of the credentials rather than of anyone's
       discipline. `sync-verify` reported 0/0/0 afterwards. The ids are recorded in the
       ops repo (private), not here.
-- [ ] **Next:** the R2 bucket — `wrangler r2 bucket create telemetry-collector-blobs`.
-      Needs an edit-capable token, so it cannot be done from this machine's ops
-      credentials. Nothing deploys until it exists; `wrangler deploy` fails on a
-      missing bucket rather than creating one.
-- [ ] Set repo variables `D1_DATABASE_ID`, `KV_NAMESPACE_ID`, `CLOUDFLARE_ACCOUNT_ID`
-      (ids are in the ops plan) and the `CLOUDFLARE_API_TOKEN` secret. Until
-      `D1_DATABASE_ID` is set the Deploy workflow skips with a notice rather than
-      failing, which is the intended pre-setup state.
+- [x] 2026-09-22 — The R2 bucket exists, created by ops IaC rather than by hand: an
+      `r2` provider was added to the ops Cloudflare sync so `- r2: telemetry-collector-blobs`
+      is declarative like D1 and KV. Two bugs found the hard way and both now
+      commented in place — the provider must not throw when R2 is unreadable (the
+      registry fetches under one `Promise.all`, so it took down DNS, D1, KV and
+      tunnels too), but it *must* throw when a create fails (the orchestrator reads
+      only a thrown error, so collecting instead printed "✓ Created" and went green
+      with no bucket).
+- [x] 2026-09-23 — ops provisions the Worker itself (`ops@3961d2b`, applied). Deciding
+      this needed the granular Workers permissions: "Editor" can deploy into an
+      existing worker but explicitly **cannot create or delete** one. Rather than give
+      this repo Admin on the whole account just so its *first* deploy has somewhere to
+      land, ops creates an empty 503 stub and this repo keeps Editor permanently.
+      `telemetry.tomsawyerlabs.com` is attached and serving the stub; ops `sync-verify`
+      reports in sync. It cost ops no new permission — the sync token already creates
+      workers. See `ops/plans/telemetry-collector-cloudflare.md`.
+- [x] 2026-09-23 — Deploy workflow now **fails** on missing or malformed configuration
+      instead of skipping green. The old `configured` gate skipped the whole job when
+      `D1_DATABASE_ID` was unset, so a run that deployed nothing reported success —
+      exactly the false-green this project exists to catch elsewhere. All five values
+      are now checked up front (presence *and* shape, every problem listed at once),
+      the API token is verified against Cloudflare before migrations run, a binding id
+      left as `"local"` is caught, and the smoke test is mandatory rather than
+      conditional on `DEPLOY_URL`.
+- [ ] **Next:** set repo variables `D1_DATABASE_ID`, `KV_NAMESPACE_ID`,
+      `CLOUDFLARE_ACCOUNT_ID`, `DEPLOY_URL` (ids are in the ops plan) and the
+      `CLOUDFLARE_API_TOKEN` secret — the latter scoped to Workers: **Editor** (not
+      Admin), D1: Edit, KV + R2: Read, account resources only, no zone resources.
+      The Deploy workflow is red until all five are set.
 - [ ] Worker secrets once deployed: `SECRET_KEK`, `AUTH_SECRET`, `BOOTSTRAP_TOKEN`,
       and `CF_ANALYTICS_TOKEN` if usage charts are wanted (writing usage needs no
       token; only reading does).

@@ -307,9 +307,36 @@ the WebAuthn relying party is derived from the request URL at runtime. My own
 deployment's custom domain and D1/R2/KV/AE bindings are declared in a separate
 infrastructure repo.
 
-Resources the deploy needs to exist first: a D1 database, a KV namespace, and an R2
-bucket (`wrangler r2 bucket create …` — wrangler will not create one for you). The
-Analytics Engine dataset needs nothing; it springs into existence on first write.
+Resources the deploy needs to exist first: a D1 database, a KV namespace, an R2 bucket
+(wrangler will not create one for you), and the Worker itself — `wrangler deploy` can
+upload into a Worker that exists but a token scoped to `Workers: Editor` cannot create
+one. The Analytics Engine dataset needs nothing; it springs into existence on first
+write.
+
+### What the deploy requires
+
+All of these, or the workflow fails. It does not skip, and it does not warn:
+
+| Name                    | Kind     | Shape                                     |
+| ----------------------- | -------- | ----------------------------------------- |
+| `CLOUDFLARE_API_TOKEN`  | secret   | verified against Cloudflare before use    |
+| `CLOUDFLARE_ACCOUNT_ID` | variable | 32 hex digits                             |
+| `KV_NAMESPACE_ID`       | variable | 32 hex digits                             |
+| `D1_DATABASE_ID`        | variable | a UUID                                    |
+| `DEPLOY_URL`            | variable | `https://host`, no trailing slash         |
+
+The token needs **Workers: Editor**, **D1: Edit**, **Workers KV Storage: Read** and
+**Workers R2 Storage: Read**, scoped to your account with no zone resources. Editor
+rather than Admin is deliberate: it can deploy into this Worker and cannot create or
+delete any other.
+
+An earlier version of this workflow skipped the deploy with a notice when
+`D1_DATABASE_ID` was unset, so that an unconfigured fork would not show a red X. That
+traded a true signal for a comfortable one — the run reported success having deployed
+nothing. Missing or malformed configuration now fails, listing every problem at once,
+before anything is mutated. `DEPLOY_URL` is required for the same reason: without it
+the deploy cannot be smoke-tested, and an unverified deploy claiming success is the
+same lie in a different place.
 
 ## Repository layout
 
