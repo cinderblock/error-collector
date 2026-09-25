@@ -596,9 +596,12 @@ Things that were not obvious going in, recorded so they are not re-derived:
       behind `master`. Layer one catches a silently broken pipeline (the
       arbitraryshit.com failure — 13 skipped pushes, 8-day-old content, 200 OK, no
       alert); layer two catches work that was never shipped.
-- [ ] Worker secrets once deployed: `SECRET_KEK`, `AUTH_SECRET`, `BOOTSTRAP_TOKEN`,
-      and `CF_ANALYTICS_TOKEN` if usage charts are wanted (writing usage needs no
-      token; only reading does).
+- [ ] Worker secrets: `SECRET_KEK` (generated and set by ops CI, never seen by anyone),
+      `BOOTSTRAP_TOKEN` (needs a human to type it, so set at enrolment time), and
+      `CF_ACCOUNT_ID` / `CF_ANALYTICS_TOKEN` within 90 days of the first usage event —
+      the daily rollup that outlives AE's retention depends on them. `AUTH_SECRET` was
+      removed 2026-09-25: it was documented as the session HMAC key, but sessions are
+      random ids looked up in D1 and nothing ever read it.
 - [ ] First deploy, then enrol the first passkey with the bootstrap token.
 - [ ] Claim the npm scope and publish `0.0.0` placeholders, then release from CI.
 - [x] 2026-09-21 — Usage tracking: `/u/` ingest (AE-only, zero D1), SQL API read path,

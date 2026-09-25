@@ -19,11 +19,13 @@ crons = ["* * * * *"]
 # Everything here is non-sensitive and safe to commit.
 #
 # Secrets (wrangler secret put / dashboard):
-#   AUTH_SECRET     — HMAC key for session and registration tokens (32+ random bytes)
-#   SECRET_KEK      — AES-GCM key encrypting app secrets at rest in D1 (32 random bytes, base64)
+#   SECRET_KEK      — AES-GCM key encrypting app secrets at rest in D1 (32 random bytes, base64url)
 #   BOOTSTRAP_TOKEN — one-time first-passkey registration; honored only while zero devices exist
-#   CF_ACCOUNT_ID / CF_ANALYTICS_TOKEN — for the governor's Analytics Engine SQL queries
-#                     and for optional Workers-plan detection
+#   CF_ACCOUNT_ID / CF_ANALYTICS_TOKEN — Analytics Engine is written through a binding but
+#                     read over HTTPS, so these are needed for the usage charts, /api/usage, and
+#                     the daily rollup that copies usage into D1 before AE's 90-day retention
+#                     deletes it. Without them that rollup fails and the lost days cannot be
+#                     backfilled. The budget governor does not need them; it reads D1.
 RP_NAME = "telemetry-collector"
 # Sole owner for now. The schema carries owner_id everywhere so real accounts are
 # later an addition rather than a migration.

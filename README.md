@@ -287,8 +287,8 @@ bun run --cwd worker scripts/dev-seed.ts gate-manager 1.4.2 prod
 bun run --cwd worker scripts/dev-token.ts agent gate-manager
 ```
 
-`.dev.vars` needs `SECRET_KEK`, `AUTH_SECRET` and `BOOTSTRAP_TOKEN`; generate them with
-32 random bytes each, base64url.
+`.dev.vars` needs `SECRET_KEK` and `BOOTSTRAP_TOKEN`; generate them with 32 random bytes
+each, base64url.
 
 ```sh
 bun run check      # typecheck + test + format
@@ -350,9 +350,11 @@ Migrations run in the deploy command because that command runs only for the prod
 branch — every other branch uses the preview command, so neither a `master` push nor a
 preview build can migrate your production database.
 
-Worker secrets are set on the Worker, not here: `SECRET_KEK`, `AUTH_SECRET`,
-`BOOTSTRAP_TOKEN`, and `CF_ACCOUNT_ID` / `CF_ANALYTICS_TOKEN` if you want usage charts.
-They persist across deploys.
+Worker secrets are set on the Worker, not here: `SECRET_KEK` and `BOOTSTRAP_TOKEN`, plus
+`CF_ACCOUNT_ID` / `CF_ANALYTICS_TOKEN` once anything sends usage events. That last pair is
+not just for the charts: the daily rollup that preserves usage past Analytics Engine's
+90-day retention needs them, and a day it misses cannot be backfilled. They persist
+across deploys.
 
 ## Repository layout
 

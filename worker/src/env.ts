@@ -27,7 +27,6 @@ export interface Env {
   USAGE_DATASET: string;
 
   // secrets
-  AUTH_SECRET?: string;
   SECRET_KEK?: string;
   BOOTSTRAP_TOKEN?: string;
   CF_ACCOUNT_ID?: string;
